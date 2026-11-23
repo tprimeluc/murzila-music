@@ -517,6 +517,7 @@
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost" id="authCodeLink" type="button">Войти по коду из письма</button>
         <button class="btn ghost" id="authGoogle" type="button">Войти через Google</button>
+        <button class="btn ghost" id="authGithub" type="button">Войти через GitHub</button>
       </div>
     </div>
 
@@ -1580,12 +1581,30 @@
   $('tabLogin').addEventListener('click', () => setAuthMode('login'));
   $('tabReg').addEventListener('click', () => setAuthMode('reg'));
   $('tabForgot').addEventListener('click', () => setAuthMode('forgot'));
-  $('authGoogle').addEventListener('click', async () => {
-    const msg = $('authMsg'); msg.className = 'msg';
-    const r = await api('/api/auth/google/start');
-    if (r.ok && r.data && r.data.url) { location.href = r.data.url; return; }
-    msg.textContent = (r.data && r.data.error) || 'Вход через Google пока недоступен на сервере.';
-  });
+  async function oauthLogin(provider) {
+    const msg = $('authMsg'); msg.className = 'msg'; msg.textContent = 'Подключаю…';
+    const r = await api('/api/auth/' + provider + '/start');
+    if (!r.ok || !r.data || !r.data.url) {
+      msg.textContent = (r.data && r.data.error) || 'Вход через ' + provider + ' пока недоступен.';
+      return;
+    }
+    const popup = window.open(r.data.url, 'murzila-oauth', 'width=520,height=640');
+    if (!popup) { location.href = r.data.url; return; }
+    msg.textContent = 'Окно авторизации открыто…';
+    const state = r.data.state;
+    const timer = setInterval(async () => {
+      try {
+        const s = await api('/api/auth/' + provider + '/status/' + encodeURIComponent(state));
+        if (s.ok && s.data && s.data.ready) {
+          clearInterval(timer); popup.close();
+          await onAuthSuccess({ token: s.data.token, user: s.data.user });
+        }
+      } catch { }
+    }, 1200);
+    setTimeout(() => clearInterval(timer), 5 * 60 * 1000);
+  }
+  $('authGoogle').addEventListener('click', () => oauthLogin('google'));
+  $('authGithub').addEventListener('click', () => oauthLogin('github'));
 
   async function onAuthSuccess(data) {
     const token = data && data.token;

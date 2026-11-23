@@ -34,6 +34,7 @@ await db.InitializeAsync();
 var yoo = new YooKassaClient();
 var mailer = new SmtpMailer();
 var google = new GoogleAuth(publicUrl);
+var github = new GitHubAuth(publicUrl);
 var sms = new SmsRuSender();
 // Отдельный ключ только для бота: публичный стрим не открывается человеку по обычному токену.
 string botStreamKey = Environment.GetEnvironmentVariable("MURZILA_BOT_KEY") ?? "";
@@ -60,6 +61,7 @@ builder.Services.AddSingleton(db);
 builder.Services.AddSingleton(yoo);
 builder.Services.AddSingleton(mailer);
 builder.Services.AddSingleton(google);
+builder.Services.AddSingleton(github);
 builder.Services.AddSingleton(sms);
 builder.Services.AddSingleton(store);
 builder.Services.AddSingleton(cloud);
@@ -658,7 +660,7 @@ app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
         string salt = Passwords.NewSalt();
         string randomPassword = Guid.NewGuid().ToString("N");
         string created = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
-        string ownerEmail = "owner@local.murzila";
+        string ownerEmail = Environment.GetEnvironmentVariable("MURZILA_OWNER_EMAIL") ?? "tprimeluc@gmail.com";
         await using (var connection = database.Open())
         await using (var command = connection.CreateCommand())
         {
@@ -1442,6 +1444,108 @@ app.MapGet("/api/auth/google/callback", async (Db database, GoogleAuth auth,
 });
 
 app.MapGet("/api/auth/google/status/{state}", async (string state, Db database) =>
+{
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT Token, UserId FROM OAuthStates WHERE State=$state AND Used=1";
+    command.Parameters.AddWithValue("$state", state);
+    await using var reader = await command.ExecuteReaderAsync();
+    if (!await reader.ReadAsync() || reader.IsDBNull(0)) return Results.Ok(new { ready = false });
+    string token = reader.GetString(0);
+    string userId = reader.GetString(1);
+    await reader.CloseAsync();
+    var user = await FindUserByIdAsync(database, userId);
+    return Results.Ok(new { ready = true, token, user });
+});
+
+app.MapGet("/api/auth/github/start", async (GitHubAuth auth, Db database, HttpContext context) =>
+{
+    if (!auth.Configured) return Results.BadRequest(new { error = "GitHub OAuth не настроен. " + auth.Issue });
+    string state = Db.NewToken();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = """
+        INSERT INTO OAuthStates (State, Token, UserId, Mode, CreatedAt, Used)
+        VALUES ($state, $token, $user, 'login', $created, 0)
+        """;
+    command.Parameters.AddWithValue("$state", state);
+    command.Parameters.AddWithValue("$token", (object?)ReadToken(context) ?? DBNull.Value);
+    command.Parameters.AddWithValue("$user", DBNull.Value);
+    command.Parameters.AddWithValue("$created", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new GoogleStartResult(auth.BuildAuthorizeUrl(state), state));
+});
+
+app.MapGet("/api/auth/github/callback", async (Db database, GitHubAuth auth,
+    string? code, string? state, string? error) =>
+{
+    if (!string.IsNullOrWhiteSpace(error))
+        return Results.Content(GooglePage("Вход отменён", "Ты отменил вход через GitHub."), "text/html");
+    if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+        return Results.Content(GooglePage("Ошибка входа", "GitHub не передал код или состояние."), "text/html");
+
+    await using (var connection = database.Open())
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Mode, CreatedAt, Used FROM OAuthStates WHERE State=$state";
+        command.Parameters.AddWithValue("$state", state);
+        await using var reader = await command.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+            return Results.Content(GooglePage("Ошибка входа", "Неизвестный запрос. Начни вход заново."), "text/html");
+        bool used = reader.GetInt32(2) != 0;
+        bool expired = DateTime.Parse(reader.GetString(1), CultureInfo.InvariantCulture).AddMinutes(15) < DateTime.UtcNow;
+        await reader.CloseAsync();
+        if (used || expired)
+            return Results.Content(GooglePage("Код устарел", "Начни вход через GitHub заново."), "text/html");
+        await using var mark = connection.CreateCommand();
+        mark.CommandText = "UPDATE OAuthStates SET Used=1 WHERE State=$state";
+        mark.Parameters.AddWithValue("$state", state);
+        await mark.ExecuteNonQueryAsync();
+    }
+
+    var ghUser = await auth.ExchangeAsync(code);
+    if (ghUser is null)
+        return Results.Content(GooglePage("Не удалось войти", auth.Issue), "text/html");
+
+    string? linked = null;
+    await using (var lookup = database.Open())
+    await using (var find = lookup.CreateCommand())
+    {
+        find.CommandText = "SELECT UserId FROM UserIdentities WHERE Provider='github' AND ProviderKey=$key";
+        find.Parameters.AddWithValue("$key", ghUser.Subject);
+        linked = await find.ExecuteScalarAsync() as string;
+    }
+    UserRow? user = linked is not null ? await FindUserByIdAsync(database, linked) : null;
+    if (user is null)
+    {
+        user = await CreateGoogleUserAsync(database, ghUser);
+        if (user is not null)
+        {
+            await using var link = database.Open();
+            await using var insert = link.CreateCommand();
+            insert.CommandText = "INSERT OR IGNORE INTO UserIdentities (UserId, Provider, ProviderKey, CreatedAt) VALUES ($user,'github',$key,$created)";
+            insert.Parameters.AddWithValue("$user", user.Id);
+            insert.Parameters.AddWithValue("$key", ghUser.Subject);
+            insert.Parameters.AddWithValue("$created", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            await insert.ExecuteNonQueryAsync();
+        }
+    }
+    if (user is null) return Results.Content(GooglePage("Ошибка", "Не удалось войти."), "text/html");
+
+    string token = await CreateSessionAsync(database, user.Id);
+    await using (var finish = database.Open())
+    await using (var update = finish.CreateCommand())
+    {
+        update.CommandText = "UPDATE OAuthStates SET Token=$token, UserId=$user, Used=1 WHERE State=$state";
+        update.Parameters.AddWithValue("$token", token);
+        update.Parameters.AddWithValue("$user", user.Id);
+        update.Parameters.AddWithValue("$state", state);
+        await update.ExecuteNonQueryAsync();
+    }
+    return Results.Content(GooglePage("Готово", "Возвращайся в Murzila Music — вход уже подхватится."), "text/html");
+});
+
+app.MapGet("/api/auth/github/status/{state}", async (string state, Db database) =>
 {
     await using var connection = database.Open();
     await using var command = connection.CreateCommand();
