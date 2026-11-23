@@ -321,6 +321,7 @@
     <div class="grow"></div>
     <div class="chip" id="status"><span class="dot"></span><span id="statusText">подключение…</span></div>
     <span id="who" class="who"></span>
+    <button class="btn" id="tfaBtn" title="Двухфакторная защита">2FA</button>
     <a class="btn" href="/api/token" title="API-ключи и токены">API</a>
     <button class="btn primary" id="loginBtn">Войти</button>
     <button class="btn hidden" id="uploadBtn">Добавить</button>
@@ -473,6 +474,32 @@
   </footer>
 </div>
 
+<!-- 2FA -->
+<div class="modal hidden" id="twofaModal">
+  <div class="dialog">
+    <h2>Двухфакторная защита</h2>
+    <p>После включения при каждом входе нужен код из письма. Это защитит аккаунт.</p>
+    <button class="submit" id="tfaEnable" type="button">Включить 2FA</button>
+    <div class="codebox hidden" id="tfaCodeBox">
+      <div class="codebox-cap">Код для подтверждения</div>
+      <div class="codebox-value" id="tfaCodeValue"></div>
+      <button class="btn small" id="tfaCopy" type="button">Скопировать код</button>
+    </div>
+    <div class="hidden" id="tfaVerifyGroup">
+      <label for="tfaCode">Код из письма</label>
+      <input id="tfaCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
+      <button class="submit" id="tfaConfirm" type="button">Подтвердить включение</button>
+    </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <label for="tfaPassword">Выключить 2FA — введи пароль</label>
+      <input id="tfaPassword" type="password" placeholder="Текущий пароль">
+      <button class="btn" id="tfaDisable" type="button" style="width:100%">Выключить 2FA</button>
+    </div>
+    <div class="msg" id="tfaMsg"></div>
+    <button class="btn ghost" id="tfaClose" type="button" style="width:100%">Закрыть</button>
+  </div>
+</div>
+
 <!-- AUTH -->
 <div class="modal hidden" id="authModal">
   <div class="dialog">
@@ -487,7 +514,10 @@
       <input id="authPass" type="password" placeholder="от 6 символов" autocomplete="current-password">
       <button class="submit" id="authSubmit">Войти</button>
       <div class="msg" id="authMsg"></div>
-      <div style="margin-top:12px;text-align:right"><button class="btn ghost" id="authCodeLink" type="button">Войти по коду из письма</button></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost" id="authCodeLink" type="button">Войти по коду из письма</button>
+        <button class="btn ghost" id="authGoogle" type="button">Войти через Google</button>
+      </div>
     </div>
 
     <div id="authPanelCode" class="hidden">
@@ -537,6 +567,7 @@
         <button class="submit" id="authForgotReset">Сбросить пароль</button>
       </div>
       <div class="msg" id="authMsg"></div>
+      <button class="btn primary hidden" id="authGoLogin" type="button" style="width:100%">Перейти к входу</button>
       <div style="margin-top:10px;text-align:center"><button class="btn ghost" id="authForgotBack" type="button">← К входу</button></div>
     </div>
   </div>
@@ -1544,10 +1575,17 @@
     $('authSubmit').textContent = mode === 'reg' ? 'Зарегистрироваться' : 'Войти';
     showAuthPanel(mode === 'reg' ? 'reg' : (mode === 'forgot' ? 'forgot' : 'login'));
     $('authMsg').textContent = '';
+    $('authGoLogin').classList.add('hidden');
   }
   $('tabLogin').addEventListener('click', () => setAuthMode('login'));
   $('tabReg').addEventListener('click', () => setAuthMode('reg'));
   $('tabForgot').addEventListener('click', () => setAuthMode('forgot'));
+  $('authGoogle').addEventListener('click', async () => {
+    const msg = $('authMsg'); msg.className = 'msg';
+    const r = await api('/api/auth/google/start');
+    if (r.ok && r.data && r.data.url) { location.href = r.data.url; return; }
+    msg.textContent = (r.data && r.data.error) || 'Вход через Google пока недоступен на сервере.';
+  });
 
   async function onAuthSuccess(data) {
     const token = data && data.token;
@@ -1580,6 +1618,20 @@
         ? await api('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) })
         : await api('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name || email.split('@')[0], email, password: pass }) });
       if (!r.ok) { msg.textContent = (r.data && r.data.error) || (authMode === 'login' ? 'Неверная почта или пароль.' : 'Не удалось зарегистрироваться.'); return; }
+      if (r.data && r.data.requires2fa) {
+        authCodeFor = '2fa'; authCodeEmail = r.data.email || email;
+        showAuthPanel('code');
+        $('authCodeEmail').value = authCodeEmail;
+        $('authCodeInput').value = '';
+        $('authCodeHint').textContent = 'Двухфакторная защита: введи код из письма.';
+        $('authSendCode').style.display = 'none';
+        $('authVerifyCode').style.display = '';
+        $('authCodeBox').classList.toggle('hidden', !r.data.testCode);
+        $('authCodeValue').textContent = r.data.testCode || '';
+        msg.className = 'msg'; msg.textContent = '';
+        $('authCodeInput').focus();
+        return;
+      }
       msg.className = 'msg ok'; msg.textContent = 'Готово, загружаю…';
       await onAuthSuccess(r.data);
     } finally { btn.disabled = false; }
@@ -1625,7 +1677,9 @@
     if (code.length !== 6) { msg.textContent = 'Введи 6-значный код.'; return; }
     const verifyBtn = $('authVerifyCode'); verifyBtn.disabled = true;
     try {
-      const r = await api(authCodeFor === 'login' ? '/api/auth/login/verify' : '/api/auth/register/verify', {
+      const url = authCodeFor === '2fa' ? '/api/auth/login/2fa/verify'
+        : (authCodeFor === 'login' ? '/api/auth/login/verify' : '/api/auth/register/verify');
+      const r = await api(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: authCodeEmail, code })
       });
       verifyBtn.disabled = false;
@@ -1660,6 +1714,12 @@
       const r = await api('/api/auth/forgot/request-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
       sendBtn.disabled = false;
       if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Не удалось отправить код.'; return; }
+      if (r.data && r.data.accountExists === false) {
+        $('authForgotCodeGroup').classList.add('hidden');
+        $('authForgotCodeBox').classList.add('hidden');
+        msg.textContent = 'Аккаунт с такой почтой не найден. Сначала зарегистрируйся.';
+        return;
+      }
       const group = $('authForgotCodeGroup');
       group.classList.remove('hidden');
       $('authForgotCode').value = ''; $('authForgotNew').value = '';
@@ -1686,13 +1746,21 @@
     try {
       const r = await api('/api/auth/forgot/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, newPassword: newPass }) });
       resetBtn.disabled = false;
-      if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Не удалось сбросить пароль.'; return; }
-      await onAuthSuccess(r.data);
+      if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Неверный код или пароль слишком короткий.'; return; }
+      if (r.data && r.data.token) { state.token = r.data.token; state.user = r.data.user; }
+      $('authForgotCodeGroup').classList.add('hidden');
+      $('authForgotCodeBox').classList.add('hidden');
+      $('authForgotNew').value = '';
+      msg.className = 'msg ok';
+      msg.textContent = 'Пароль успешно изменён! Перейди во вкладку «Вход» и введи новый пароль.';
+      $('authGoLogin').classList.remove('hidden');
+      toast('Пароль успешно изменён', true);
     } catch { resetBtn.disabled = false; msg.textContent = 'Не удалось сбросить пароль.'; }
   }
   $('authForgotSend').addEventListener('click', submitForgot);
   $('authForgotReset').addEventListener('click', submitForgotReset);
   $('authForgotBack').addEventListener('click', () => setAuthMode('login'));
+  $('authGoLogin').addEventListener('click', () => setAuthMode('login'));
   function copyTestCode(value, button) {
     navigator.clipboard?.writeText(value).then(() => {
       const old = button.textContent; button.textContent = 'Скопировано ✓';
@@ -1701,6 +1769,50 @@
   }
   $('authCodeCopy').addEventListener('click', () => copyTestCode($('authCodeValue').textContent, $('authCodeCopy')));
   $('authForgotCopy').addEventListener('click', () => copyTestCode($('authForgotCodeValue').textContent, $('authForgotCopy')));
+
+  $('tfaBtn').addEventListener('click', () => {
+    if (!state.user) { openAuth(); toast('Сначала войди в аккаунт'); return; }
+    $('tfaMsg').textContent = '';
+    $('tfaModal').classList.remove('hidden');
+  });
+  $('tfaClose').addEventListener('click', () => $('tfaModal').classList.add('hidden'));
+  $('tfaCopy').addEventListener('click', () => copyTestCode($('tfaCodeValue').textContent, $('tfaCopy')));
+  $('tfaEnable').addEventListener('click', async () => {
+    const msg = $('tfaMsg'); msg.className = 'msg'; msg.textContent = 'Отправляю код…';
+    const r = await api('/api/account/2fa/request', { method: 'POST' });
+    if (!r.ok) { msg.textContent = 'Не удалось отправить код.'; return; }
+    $('tfaVerifyGroup').classList.remove('hidden');
+    if (r.data && r.data.testCode) {
+      $('tfaCodeBox').classList.remove('hidden');
+      $('tfaCodeValue').textContent = r.data.testCode;
+      msg.textContent = 'Письмо недоступно — используй код ниже.';
+    } else {
+      $('tfaCodeBox').classList.add('hidden');
+      msg.textContent = 'Код отправлен на почту.';
+    }
+    $('tfaCode').focus();
+  });
+  $('tfaConfirm').addEventListener('click', async () => {
+    const msg = $('tfaMsg'); msg.className = 'msg';
+    const code = $('tfaCode').value.trim();
+    if (code.length !== 6) { msg.textContent = 'Введи 6-значный код.'; return; }
+    const r = await api('/api/account/2fa/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: '', code })
+    });
+    if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Неверный код.'; return; }
+    msg.className = 'msg ok'; msg.textContent = '2FA включена! Теперь при входе нужен код из письма.';
+  });
+  $('tfaDisable').addEventListener('click', async () => {
+    const msg = $('tfaMsg'); msg.className = 'msg';
+    const password = $('tfaPassword').value;
+    if (!password) { msg.textContent = 'Введи текущий пароль.'; return; }
+    const r = await api('/api/account/2fa/disable', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password })
+    });
+    if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Не удалось выключить 2FA.'; return; }
+    msg.className = 'msg ok'; msg.textContent = '2FA выключена.';
+    $('tfaPassword').value = ''; $('tfaVerifyGroup').classList.add('hidden'); $('tfaCodeBox').classList.add('hidden');
+  });
 
   $('logoutBtn').addEventListener('click', async () => {
     await api('/api/web/logout', { method: 'POST' });

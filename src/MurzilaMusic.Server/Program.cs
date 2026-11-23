@@ -328,11 +328,12 @@ app.MapPost("/api/music/lyrics/{trackId}/fetch", async (HttpContext context, Db 
     string? text = null, synced = null;
     string source = "";
 
+    string clean = Regex.Replace(meta.Title, @"\s*[\(\[][^\)\]]*[\)\]]", "").Trim();
+
     // 1. lrclib — синхронизированный LRC. Пробуем несколько вариантов названия:
-    // "&quot;(tunemir.com)&quot;", "&quot;[nmuz.net]&quot;" и т.п. мешают поиску, как и хэш в названии.
+    // "(tunemir.com)", "[nmuz.net]" и т.п. мешают поиску, как и хэш в названии.
     try
     {
-        string clean = Regex.Replace(meta.Title, @"\s*[\(\[][^\)\]]*[\)\]]", "").Trim();
         bool artistKnown = !string.IsNullOrWhiteSpace(meta.Artist)
             && meta.Artist.IndexOf("неизвест", StringComparison.OrdinalIgnoreCase) < 0
             && meta.Artist.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) < 0;
@@ -388,8 +389,15 @@ app.MapPost("/api/music/lyrics/{trackId}/fetch", async (HttpContext context, Db 
         if (!string.IsNullOrWhiteSpace(text)) source = "genius";
     }
 
+    // 3. lyrics.ovh — запасной обычный текст.
     if (string.IsNullOrWhiteSpace(text))
-        return Results.NotFound(new { error = "Текст не найден ни в lrclib, ни в Genius." });
+    {
+        text = await TryLyricsOvhAsync(meta.Artist, clean);
+        if (!string.IsNullOrWhiteSpace(text)) source = "lyrics.ovh";
+    }
+
+    if (string.IsNullOrWhiteSpace(text))
+        return Results.NotFound(new { error = "Текст не найден ни в lrclib, ни в Genius, ни в lyrics.ovh." });
 
     await cloud.SaveLyricsAsync(owner.UserId, trackId, text);
     return Results.Json(new { trackId, format = synced is null ? "plain" : "lrc", source, text });
@@ -479,26 +487,34 @@ app.MapPost("/api/auth/register", async (RegisterRequest request, Db database, H
     return Results.Ok(new AuthResult { Token = token, User = new UserDto { Id = id, Name = name, Email = email } });
 });
 
-app.MapPost("/api/auth/login", async (LoginRequest request, Db database, HttpContext http) =>
+app.MapPost("/api/auth/login", async (LoginRequest request, Db database, HttpContext http, SmtpMailer mail) =>
 {
     string email = (request.Email ?? "").Trim().ToLowerInvariant();
     string password = request.Password ?? "";
     await using var connection = database.Open();
     await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT Id, Name, Email, Salt, PasswordHash, Tariff FROM Users WHERE Email=$email";
+    command.CommandText = "SELECT Id, Name, Email, Salt, PasswordHash, Tariff, TwoFactorEnabled FROM Users WHERE Email=$email";
     command.Parameters.AddWithValue("$email", email);
     await using var reader = await command.ExecuteReaderAsync();
     if (!await reader.ReadAsync() || !Passwords.Verify(password, reader.GetString(3), reader.GetString(4)))
         return Results.Unauthorized();
 
+    string userId = reader.GetString(0);
+    bool twoFactor = reader.GetInt32(6) != 0;
     var user = new UserDto
     {
-        Id = reader.GetString(0),
+        Id = userId,
         Name = reader.GetString(1),
         Email = reader.GetString(2),
         Tariff = reader.GetInt32(5)
     };
     await reader.CloseAsync();
+
+    if (twoFactor)
+    {
+        string testCode = await IssueTwoFactorCodeAsync(database, userId, email, mail);
+        return Results.Ok(new { requires2fa = true, email, testCode });
+    }
 
     string token = Db.NewToken();
     await using var session = connection.CreateCommand();
@@ -510,6 +526,111 @@ app.MapPost("/api/auth/login", async (LoginRequest request, Db database, HttpCon
 
     SignInCookie(http, token);
     return Results.Ok(new AuthResult { Token = token, User = user });
+});
+
+// ---------- двухфакторная аутентификация ----------
+
+app.MapPost("/api/auth/login/2fa/verify", async (TwoFactorVerifyRequest request, Db database, HttpContext http) =>
+{
+    string email = (request.Email ?? "").Trim().ToLowerInvariant();
+    string code = (request.Code ?? "").Trim();
+    if (code.Length != 6) return Results.BadRequest(new { error = "Введи 6-значный код." });
+
+    var account = await FindUserByEmailAsync(database, email);
+    if (account is null) return Results.BadRequest(new { error = "Аккаунт не найден." });
+
+    bool valid = false;
+    await using (var connection = database.Open())
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CodeHash, ExpiresAt, Attempts FROM TwoFactorCodes WHERE UserId=$user";
+        command.Parameters.AddWithValue("$user", account.Id);
+        await using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            if (DateTime.Parse(reader.GetString(1), CultureInfo.InvariantCulture) >= DateTime.UtcNow
+                && reader.GetInt32(2) < 5
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(reader.GetString(0)),
+                    Encoding.UTF8.GetBytes(Db.PurposeCodeHash(email, "2fa", code))))
+                valid = true;
+        }
+    }
+    if (!valid) return Results.BadRequest(new { error = "Неверный или устаревший код 2FA." });
+
+    string token = Db.NewToken();
+    await using (var connection = database.Open())
+    {
+        await using var clear = connection.CreateCommand();
+        clear.CommandText = "DELETE FROM TwoFactorCodes WHERE UserId=$user";
+        clear.Parameters.AddWithValue("$user", account.Id);
+        await clear.ExecuteNonQueryAsync();
+        await using var session = connection.CreateCommand();
+        session.CommandText = "INSERT INTO Sessions (TokenHash, UserId, ExpiresAt) VALUES ($token, $user, $expires)";
+        session.Parameters.AddWithValue("$token", Db.TokenHash(token));
+        session.Parameters.AddWithValue("$user", account.Id);
+        session.Parameters.AddWithValue("$expires", DateTime.UtcNow.AddDays(30).ToString("O", CultureInfo.InvariantCulture));
+        await session.ExecuteNonQueryAsync();
+    }
+    SignInCookie(http, token);
+    return Results.Ok(new AuthResult
+    {
+        Token = token,
+        User = new UserDto { Id = account.Id, Name = account.Name, Email = account.Email, Tariff = account.Tariff }
+    });
+});
+
+app.MapPost("/api/account/2fa/request", async (HttpContext context, Db database, SmtpMailer mail) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string code = await IssueTwoFactorCodeAsync(database, user.Id, user.Email, mail);
+    return Results.Ok(new { email = Pii.MaskEmail(user.Email), testCode = code });
+});
+
+app.MapPost("/api/account/2fa/verify", async (TwoFactorVerifyRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string code = (request.Code ?? "").Trim();
+    bool valid = false;
+    await using (var connection = database.Open())
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CodeHash, ExpiresAt, Attempts FROM TwoFactorCodes WHERE UserId=$user";
+        command.Parameters.AddWithValue("$user", user.Id);
+        await using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync() && DateTime.Parse(reader.GetString(1), CultureInfo.InvariantCulture) >= DateTime.UtcNow
+            && reader.GetInt32(2) < 5)
+            valid = CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(reader.GetString(0)),
+                Encoding.UTF8.GetBytes(Db.PurposeCodeHash(user.Email, "2fa", code)));
+    }
+    if (!valid) return Results.BadRequest(new { error = "Неверный код 2FA." });
+
+    await using (var connection = database.Open())
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Users SET TwoFactorEnabled=1 WHERE Id=$user; DELETE FROM TwoFactorCodes WHERE UserId=$user";
+        command.Parameters.AddWithValue("$user", user.Id);
+        await command.ExecuteNonQueryAsync();
+    }
+    return Results.Ok(new { enabled = true });
+});
+
+app.MapPost("/api/account/2fa/disable", async (Disable2FaRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var auth = await FindUserByEmailAsync(database, user.Email);
+    if (auth is null || !Passwords.Verify(request.Password ?? "", auth.Salt, auth.PasswordHash))
+        return Results.BadRequest(new { error = "Неверный пароль." });
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "UPDATE Users SET TwoFactorEnabled=0 WHERE Id=$user; DELETE FROM TwoFactorCodes WHERE UserId=$user";
+    command.Parameters.AddWithValue("$user", user.Id);
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { enabled = false });
 });
 
 // ---------- веб-плеер: сессия в cookie, /api/web/* ----------
@@ -815,6 +936,7 @@ app.MapPost("/api/auth/forgot/request-code", async (ForgotRequest request, Db da
     var user = await UserExistsAsync(database, email) ? await FindUserByEmailAsync(database, email) : null;
     string? code = null;
     bool mailFailed = false;
+    UserRow? resetUser = user;
     if (user is not null)
     {
         code = Db.NewCode();
@@ -843,6 +965,7 @@ app.MapPost("/api/auth/forgot/request-code", async (ForgotRequest request, Db da
         email,
         maskedEmail = Pii.MaskEmail(email),
         expiresIn = 600,
+        accountExists = resetUser is not null,
         testMode = !mail.Configured || mailFailed,
         testCode = user is not null && (!mail.Configured || mailFailed) ? code : null,
         note = mailFailed ? "Письмо не отправилось (SMTP недоступен) — код показан здесь." : ""
@@ -1689,6 +1812,21 @@ static IResult HtmlPage(IWebHostEnvironment env, string path)
 }
 
 /// <summary>Genius как второй источник текста: публичный поиск + страница песни.</summary>
+static async Task<string?> TryLyricsOvhAsync(string artist, string title)
+{
+    try
+    {
+        string url = "https://api.lyrics.ovh/v1/" + Uri.EscapeDataString(artist) + "/" + Uri.EscapeDataString(title);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        using var response = await http.GetAsync(url);
+        if (!response.IsSuccessStatusCode) return null;
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        string lyrics = json.RootElement.TryGetProperty("lyrics", out var l) ? l.GetString() ?? "" : "";
+        return string.IsNullOrWhiteSpace(lyrics) ? null : lyrics.Trim();
+    }
+    catch { return null; }
+}
+
 static async Task<string?> TryGeniusLyricsAsync(string artist, string title)
 {
     string query = (artist + " " + title).Trim();
@@ -1762,6 +1900,28 @@ static async Task<string?> TryGeniusLyricsAsync(string artist, string title)
         return lyrics.Length > 0 ? lyrics : null;
     }
     catch { return null; }
+}
+
+static async Task<string> IssueTwoFactorCodeAsync(Db database, string userId, string email, SmtpMailer mail)
+{
+    string code = Db.NewCode();
+    string expires = DateTime.UtcNow.AddMinutes(5).ToString("O", CultureInfo.InvariantCulture);
+    await using (var connection = database.Open())
+    await using (var command = connection.CreateCommand())
+    {
+        command.CommandText = """
+            INSERT INTO TwoFactorCodes (UserId, CodeHash, ExpiresAt, Attempts) VALUES ($user, $hash, $expires, 0)
+            ON CONFLICT(UserId) DO UPDATE SET CodeHash=excluded.CodeHash, ExpiresAt=excluded.ExpiresAt, Attempts=0
+            """;
+        command.Parameters.AddWithValue("$user", userId);
+        command.Parameters.AddWithValue("$hash", Db.PurposeCodeHash(email, "2fa", code));
+        command.Parameters.AddWithValue("$expires", expires);
+        await command.ExecuteNonQueryAsync();
+    }
+    bool failed = false;
+    try { await mail.SendCodeAsync(email, email, code, "login"); }
+    catch { failed = true; }
+    return !mail.Configured || failed ? code : "";
 }
 
 static async Task<bool> IsGuestTokenAsync(Db database, string? token)

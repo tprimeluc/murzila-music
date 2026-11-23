@@ -22,6 +22,8 @@ public sealed record LoginCodeRequest(string Email, string Password);
 public sealed record ForgotRequest(string Email);
 public sealed record ResetPasswordRequest(string Email, string Code, string NewPassword);
 public sealed record SetSharedRequest(bool Allowed);
+public sealed record TwoFactorVerifyRequest(string Email, string Code);
+public sealed record Disable2FaRequest(string Password);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeEmailCodeRequest(string NewEmail);
 public sealed record VerifyEmailCodeRequest(string NewEmail, string Code);
@@ -577,6 +579,12 @@ public sealed class Db
                 ExpiresAt TEXT NOT NULL,
                 Attempts INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS TwoFactorCodes (
+                UserId TEXT PRIMARY KEY,
+                CodeHash TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL,
+                Attempts INTEGER NOT NULL DEFAULT 0
+            );
             CREATE TABLE IF NOT EXISTS EmailChangeCodes (
                 UserId TEXT PRIMARY KEY,
                 NewEmail TEXT NOT NULL COLLATE NOCASE,
@@ -718,6 +726,7 @@ public sealed class Db
         await EnsureColumnAsync(connection, "Users", "Phone", "TEXT");
         await EnsureColumnAsync(connection, "Users", "PhoneVerified", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "Users", "EmailVerified", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Users", "TwoFactorEnabled", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "ApiApps", "UserId", "TEXT");
         await EnsureColumnAsync(connection, "Sessions", "IsGuest", "INTEGER NOT NULL DEFAULT 0");
     }
