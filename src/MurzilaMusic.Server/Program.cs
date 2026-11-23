@@ -525,8 +525,34 @@ app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
 {
     // Гостевой доступ: 6 минут и до 5000 треков без входа. Токен живёт 6 минут.
     string email = Environment.GetEnvironmentVariable("MURZILA_OWNER_EMAIL") ?? "tprimeluc@gmail.com";
-    var user = await FindUserByEmailAsync(database, email);
-    if (user is null) return Results.Json(new { error = "Гостевой аккаунт не найден." }, statusCode: 404);
+    UserRow? user = await FindUserByEmailAsync(database, email);
+    if (user is null) user = await FindFirstUserAsync(database);
+
+    // Свежий деплой: база пустая. Создаём владельца, иначе гостевой режим не включится.
+    if (user is null)
+    {
+        string id = Guid.NewGuid().ToString("N");
+        string salt = Passwords.NewSalt();
+        string randomPassword = Guid.NewGuid().ToString("N");
+        string created = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        string ownerEmail = "owner@local.murzila";
+        await using (var connection = database.Open())
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                INSERT INTO Users (Id, Email, Name, Salt, PasswordHash, Tariff, CreatedAt)
+                VALUES ($id, $email, $name, $salt, $hash, 0, $created)
+                """;
+            command.Parameters.AddWithValue("$id", id);
+            command.Parameters.AddWithValue("$email", ownerEmail);
+            command.Parameters.AddWithValue("$name", "Владелец");
+            command.Parameters.AddWithValue("$salt", salt);
+            command.Parameters.AddWithValue("$hash", Passwords.Hash(randomPassword, Convert.FromBase64String(salt)));
+            command.Parameters.AddWithValue("$created", created);
+            await command.ExecuteNonQueryAsync();
+        }
+        user = new UserRow { Id = id, Email = ownerEmail, Name = "Владелец", Tariff = 0 };
+    }
 
     string token = Db.NewToken();
     string expires = DateTime.UtcNow.AddMinutes(6).ToString("O", CultureInfo.InvariantCulture);
@@ -1825,6 +1851,27 @@ static async Task<UserAuthRow?> FindUserByEmailAsync(Db database, string email)
         Phone = reader.IsDBNull(6) ? null : reader.GetString(6),
         PhoneVerified = reader.GetInt32(7) != 0, EmailVerified = reader.GetInt32(8) != 0,
         GoogleLinked = reader.GetInt32(9) > 0
+    };
+}
+
+static async Task<UserRow?> FindFirstUserAsync(Db database)
+{
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = """
+        SELECT u.Id, u.Name, u.Email, u.Tariff, u.Phone, u.PhoneVerified, u.EmailVerified,
+               (SELECT COUNT(1) FROM UserIdentities i WHERE i.UserId=u.Id AND i.Provider='google')
+        FROM Users u ORDER BY u.CreatedAt LIMIT 1
+        """;
+    await using var reader = await command.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return null;
+    return new UserRow
+    {
+        Id = reader.GetString(0), Name = reader.GetString(1),
+        Email = reader.GetString(2), Tariff = reader.GetInt32(3),
+        Phone = reader.IsDBNull(4) ? null : reader.GetString(4),
+        PhoneVerified = reader.GetInt32(5) != 0, EmailVerified = reader.GetInt32(6) != 0,
+        GoogleLinked = reader.GetInt32(7) > 0
     };
 }
 
