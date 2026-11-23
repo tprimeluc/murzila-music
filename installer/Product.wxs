@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Murzila Music" Manufacturer="MursikT7 Corporation"
+           Version="3.6.0" UpgradeCode="6D2B4E5A-8C31-4F2A-9E77-0A1B2C3D4E5F"
+           Language="1049" Codepage="65001" InstallerVersion="200"
+           Scope="perUserOrMachine" Compressed="yes">
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.SourceDir)\Assets\murzila.ico" />
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Murzila Music">
+        <Directory Id="AssetsFolder" Name="Assets" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MurzilaMenu" Name="Murzila Music" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles">
+      <Component Id="AppExe" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="AppExeFile" Source="$(var.SourceDir)\MurzilaMusic.App.exe" KeyPath="yes">
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Murzila Music"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="no" Icon="AppIcon" />
+          <Shortcut Id="StartMenuShortcut" Directory="MurzilaMenu" Name="Murzila Music"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="no" Icon="AppIcon" />
+        </File>
+      </Component>
+      <Component Id="AppDll" Directory="INSTALLFOLDER" Guid="*">
+        <File Source="$(var.SourceDir)\MurzilaMusic.App.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="AppDeps" Directory="INSTALLFOLDER" Guid="*">
+        <File Source="$(var.SourceDir)\MurzilaMusic.App.deps.json" KeyPath="yes" />
+      </Component>
+      <Component Id="AppRuntime" Directory="INSTALLFOLDER" Guid="*">
+        <File Source="$(var.SourceDir)\MurzilaMusic.App.runtimeconfig.json" KeyPath="yes" />
+      </Component>
+      <Component Id="AppPdb" Directory="INSTALLFOLDER" Guid="*">
+        <File Source="$(var.SourceDir)\MurzilaMusic.App.pdb" KeyPath="yes" />
+      </Component>
+      <Component Id="NaudioAsio" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.Asio.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioCore" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.Core.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioMain" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioMidi" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.Midi.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioVorbis" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.Vorbis.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioWasapi" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.Wasapi.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioWinForms" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.WinForms.dll" KeyPath="yes" /></Component>
+      <Component Id="NaudioWinMM" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NAudio.WinMM.dll" KeyPath="yes" /></Component>
+      <Component Id="NVorbis" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\NVorbis.dll" KeyPath="yes" /></Component>
+      <Component Id="TagLib" Directory="INSTALLFOLDER" Guid="*"><File Source="$(var.SourceDir)\TagLibSharp.dll" KeyPath="yes" /></Component>
+      <Component Id="AssetIconPng" Directory="AssetsFolder" Guid="*"><File Source="$(var.SourceDir)\Assets\murzila-icon.png" KeyPath="yes" /></Component>
+      <Component Id="AssetIconIco" Directory="AssetsFolder" Guid="*"><File Source="$(var.SourceDir)\Assets\murzila.ico" KeyPath="yes" /></Component>
+      <Component Id="AssetVisual" Directory="AssetsFolder" Guid="*"><File Source="$(var.SourceDir)\Assets\visualizer-reference.png" KeyPath="yes" /></Component>
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="Murzila Music" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+  </Package>
+</Wix>

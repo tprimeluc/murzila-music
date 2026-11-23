@@ -419,7 +419,7 @@ app.MapGet("/api/music/stats", async (HttpContext context, Db database, ApiServi
 app.MapGet("/api/servers", (HttpContext context) => Results.Json(new
 {
     service = "Murzila-Music",
-    version = "1.3.0-beta",
+    version = "3.6.0-beta",
     endpoints = new[]
     {
         new { name = "Веб-плеер (браузер)", url = "http://localhost:6001/player", kind = "web", safe = true },
@@ -433,7 +433,7 @@ app.MapGet("/api/servers", (HttpContext context) => Results.Json(new
     host = context.Request.Host.Value
 }));
 
-app.MapGet("/api/health", () => Results.Json(new { status = "ok", service = "Murzila-Music", version = "1.3.0-beta" }));
+app.MapGet("/api/health", () => Results.Json(new { status = "ok", service = "Murzila-Music", version = "3.6.0-beta" }));
 
 app.MapPost("/api/auth/register", async (RegisterRequest request, Db database, HttpContext http) =>
 {
