@@ -1,0 +1,19 @@
+<UserControl x:Class="MurzilaMusic.App.Controls.SeasonalEffectsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent" IsHitTestVisible="False">
+    <Grid x:Name="Root" IsHitTestVisible="False">
+        <Rectangle x:Name="SunGlow" Visibility="Collapsed" IsHitTestVisible="False"
+                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Width="520" Height="520" Margin="0,-160,-120,0" Opacity="0.28">
+            <Rectangle.Fill>
+                <RadialGradientBrush Center="0.62,0.38" RadiusX="0.62" RadiusY="0.62">
+                    <GradientStop Color="#FFE7A3" Offset="0"/>
+                    <GradientStop Color="#66FFD98A" Offset="0.38"/>
+                    <GradientStop Color="#00FFD98A" Offset="1"/>
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+        <Canvas x:Name="Particles" IsHitTestVisible="False"/>
+    </Grid>
+</UserControl>

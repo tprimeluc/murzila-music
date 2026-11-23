@@ -1,0 +1,17 @@
+# Render Blueprint: бесплатный Web Service с C# сервером Murzila Music
+services:
+  - type: web
+    name: murzila-music
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: MURZILA_SERVER_URL
+        value: https://murzila-music.cc.cd
+      - key: MURZILA_ADMIN_TOKEN
+        generateValue: true
+      - key: MURZILA_ALLOW_TEST_PAYMENTS
+        value: "true"
+      - key: MURZILA_SELF_REFUND
+        value: "true"

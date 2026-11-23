@@ -1,0 +1,98 @@
+{
+  "version": "2026-11-20.1",
+  "currency": "RUB",
+  "adsLevels": [ "full", "low", "none" ],
+  "plans": [
+    {
+      "id": "free", "name": "Бесплатный", "priceRub": 0,
+      "trackLimit": 5000, "minuteLimit": 6, "adsLevel": "full",
+      "durationDays": null, "featureCount": 0, "sortOrder": 0, "legacyTariff": 0,
+      "description": "Свои треки до 6 минут, до 5000 прослушиваний. С рекламой.",
+      "features": []
+    },
+    {
+      "id": "pro50", "name": "Про", "priceRub": 50,
+      "trackLimit": 20000, "minuteLimit": 10, "adsLevel": "low",
+      "durationDays": null, "featureCount": 10, "sortOrder": 1, "legacyTariff": 50,
+      "description": "Доступ к API, 10 функций, треки до 10 минут, 20000 треков. Мало рекламы.",
+      "features": [ "f001", "f002", "f003", "f004", "f005", "f006", "f007", "f008", "f009", "f010" ]
+    },
+    {
+      "id": "premium105", "name": "Премиум", "priceRub": 105,
+      "trackLimit": 50000, "minuteLimit": 20, "adsLevel": "low",
+      "durationDays": null, "featureCount": 24, "sortOrder": 2, "legacyTariff": 105,
+      "description": "24 функции, треки до 20 минут, 50000 треков. Мало рекламы.",
+      "features": [ "f001", "f002", "f003", "f004", "f005", "f006", "f007", "f008", "f009", "f010",
+                    "f011", "f012", "f013", "f014", "f015", "f016", "f017", "f018", "f019", "f020",
+                    "f021", "f022", "f023", "f024" ]
+    },
+    {
+      "id": "ultra200", "name": "Ультра", "priceRub": 200,
+      "trackLimit": -1, "minuteLimit": -1, "adsLevel": "none",
+      "durationDays": null, "featureCount": 48, "sortOrder": 3, "legacyTariff": 200,
+      "description": "48 функций, без ограничений и без рекламы.",
+      "features": [ "f001", "f002", "f003", "f004", "f005", "f006", "f007", "f008", "f009", "f010",
+                    "f011", "f012", "f013", "f014", "f015", "f016", "f017", "f018", "f019", "f020",
+                    "f021", "f022", "f023", "f024", "f025", "f026", "f027", "f028", "f029", "f030",
+                    "f031", "f032", "f033", "f034", "f035", "f036", "f037", "f038", "f039", "f040",
+                    "f041", "f042", "f043", "f044", "f045", "f046", "f047", "f048" ]
+    }
+  ],
+  "addons": [
+    {
+      "id": "single5", "name": "Разовый доступ к треку", "priceRub": 5,
+      "kind": "trackUnlock", "sortOrder": 9, "legacyTariff": 5,
+      "description": "Открыть один трек длиннее 6 минут без подписки."
+    }
+  ],
+  "features": [
+    { "id": "f001", "title": "Доступ к API", "description": "Локальный HTTP API и интеграции", "category": "api", "status": "available" },
+    { "id": "f002", "title": "20 000 треков", "description": "Библиотека до 20 000 треков", "category": "library", "status": "available" },
+    { "id": "f003", "title": "Треки до 10 минут", "description": "Прослушивание треков до 10 минут", "category": "playback", "status": "available" },
+    { "id": "f004", "title": "Мало рекламы", "description": "Реклама почти не мешает", "category": "ads", "status": "available" },
+    { "id": "f005", "title": "Плейлисты без лимита", "description": "Создавай сколько угодно плейлистов", "category": "library", "status": "available" },
+    { "id": "f006", "title": "Тексты lrclib", "description": "Синхронные тексты из lrclib", "category": "lyrics", "status": "available" },
+    { "id": "f007", "title": "Тексты Genius", "description": "Поиск текстов через Genius по токену", "category": "lyrics", "status": "available" },
+    { "id": "f008", "title": "Эквалайзер 10 полос", "description": "Эквалайзер с пресетами", "category": "audio", "status": "available" },
+    { "id": "f009", "title": "FFT-визуализатор", "description": "24 радужных столбика от реального звука", "category": "audio", "status": "available" },
+    { "id": "f010", "title": "Аккаунт и тариф", "description": "Аккаунт и тариф на всех устройствах", "category": "account", "status": "available" },
+    { "id": "f011", "title": "50 000 треков", "description": "Библиотека до 50 000 треков", "category": "library", "status": "available" },
+    { "id": "f012", "title": "Треки до 20 минут", "description": "Прослушивание треков до 20 минут", "category": "playback", "status": "available" },
+    { "id": "f013", "title": "Видеоклипы", "description": "Внутренний видеоплеер с текстом", "category": "video", "status": "available" },
+    { "id": "f014", "title": "Enhanced-тексты", "description": "Пословные метки <mm:ss.xx>", "category": "lyrics", "status": "available" },
+    { "id": "f015", "title": "Караоке и клик", "description": "Побуквенная подсветка и перемотка по слову", "category": "lyrics", "status": "available" },
+    { "id": "f016", "title": "Редактор текста", "description": "Свой .lrc и встроенный редактор", "category": "lyrics", "status": "available" },
+    { "id": "f017", "title": "Обложки", "description": "Квадратные обложки и «Сейчас играет»", "category": "ui", "status": "available" },
+    { "id": "f018", "title": "Сезонные эффекты", "description": "Снег, листья, солнце по времени года", "category": "ui", "status": "available" },
+    { "id": "f019", "title": "Публикация ссылки", "description": "Опубликовать свой трек и скопировать ссылку", "category": "share", "status": "available" },
+    { "id": "f020", "title": "Публикация в LAN", "description": "Доступ к своим трекам в локальной сети", "category": "share", "status": "available" },
+    { "id": "f021", "title": "Горячие клавиши", "description": "Пробел, стрелки, M/L/S/R", "category": "ui", "status": "available" },
+    { "id": "f022", "title": "Вывод звука", "description": "Выбор устройства и Bluetooth", "category": "audio", "status": "available" },
+    { "id": "f023", "title": "Офлайн и кэш", "description": "Офлайн-режим и кэш текстов", "category": "network", "status": "available" },
+    { "id": "f024", "title": "История покупок", "description": "История, чеки и возвраты", "category": "account", "status": "available" },
+    { "id": "f025", "title": "Без лимита треков", "description": "Библиотека без ограничений", "category": "library", "status": "available" },
+    { "id": "f026", "title": "Без лимита длительности", "description": "Треки любой длительности", "category": "playback", "status": "available" },
+    { "id": "f027", "title": "Без рекламы", "description": "Реклама полностью выключена", "category": "ads", "status": "available" },
+    { "id": "f028", "title": "Экспорт плейлистов", "description": "Экспорт в M3U/JSON", "category": "library", "status": "planned" },
+    { "id": "f029", "title": "Импорт плейлистов", "description": "Импорт своих плейлистов из файла", "category": "library", "status": "available" },
+    { "id": "f030", "title": "Musixmatch", "description": "Провайдер текстов Musixmatch по ключу", "category": "lyrics", "status": "available" },
+    { "id": "f031", "title": "Массовые тексты", "description": "Подгрузка текстов для всей библиотеки", "category": "lyrics", "status": "planned" },
+    { "id": "f032", "title": "Все провайдеры сразу", "description": "Поиск по всем источникам параллельно", "category": "lyrics", "status": "available" },
+    { "id": "f033", "title": "История прослушиваний", "description": "Что и когда играло", "category": "library", "status": "available" },
+    { "id": "f034", "title": "Статистика и топы", "description": "Расширенная статистика", "category": "library", "status": "planned" },
+    { "id": "f035", "title": "Повтор и перемешивание", "description": "Расширенные режимы", "category": "playback", "status": "available" },
+    { "id": "f036", "title": "Таймер сна", "description": "Выключить воспроизведение через время", "category": "playback", "status": "planned" },
+    { "id": "f037", "title": "Типографика текста", "description": "Шрифт, размер и свечение", "category": "lyrics", "status": "available" },
+    { "id": "f038", "title": "Компактный режим", "description": "Плотный список треков", "category": "ui", "status": "available" },
+    { "id": "f039", "title": "Темы и акценты", "description": "Тёмная, светлая и ночная темы без перезапуска", "category": "ui", "status": "available" },
+    { "id": "f040", "title": "Резервная копия", "description": "Бэкап и восстановление библиотеки", "category": "library", "status": "available" },
+    { "id": "f041", "title": "Синхронизация", "description": "Библиотека между устройствами", "category": "network", "status": "available" },
+    { "id": "f042", "title": "Webhook'и API", "description": "Авто-события и webhooks", "category": "api", "status": "available" },
+    { "id": "f043", "title": "Приоритетная поддержка", "description": "Быстрый ответ на вопросы", "category": "account", "status": "available" },
+    { "id": "f044", "title": "Ранний доступ", "description": "Новые функции первыми", "category": "account", "status": "available" },
+    { "id": "f045", "title": "Семейный доступ", "description": "До 5 устройств", "category": "account", "status": "planned" },
+    { "id": "f046", "title": "Сервер 24/7", "description": "Автозапуск сервера при входе в Windows", "category": "network", "status": "available" },
+    { "id": "f047", "title": "Вход по почте", "description": "Код из письма для входа и восстановления пароля", "category": "account", "status": "available" },
+    { "id": "f048", "title": "48 возможностей", "description": "Единый каталог онлайн-возможностей в приложении", "category": "ui", "status": "available" }
+  ]
+}

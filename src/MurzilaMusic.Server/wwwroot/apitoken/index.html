@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Murzila Music API — ключи и токены</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<style>
+  :root {
+    --bg:#0a0a10; --panel:#13131c; --card:#1a1a26; --line:#2a2a3c;
+    --text:#f4f4f8; --muted:#9c9cb0; --accent:#1ed760; --accent-2:#57e08c;
+    --danger:#ff8b8b; --mono:"Cascadia Code",Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent-2); }
+  .nav { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:18px;
+    padding:14px 28px; background:rgba(10,10,16,.86); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.3px; }
+  .brand .dot { width:26px; height:26px; border-radius:8px;
+    background:linear-gradient(140deg,var(--accent),#0f8f3e); box-shadow:0 0 18px rgba(30,215,96,.45); overflow:hidden; display:inline-block; }
+  .brand .dot img { width:100%; height:100%; object-fit:cover; border-radius:8px; }
+  .nav .spacer { flex:1; }
+  .nav a.link { color:var(--muted); text-decoration:none; font-size:14px; padding:6px 10px; border-radius:8px; }
+  .nav a.link:hover { color:var(--text); background:var(--card); }
+  .wrap { max-width:1040px; margin:0 auto; padding:44px 24px 90px; }
+  h1 { font-size:34px; margin:0 0 8px; }
+  .lead { color:var(--muted); font-size:16px; line-height:1.65; margin:0 0 26px; max-width:760px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:820px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; }
+  .card h2 { font-size:17px; margin:0 0 14px; display:flex; align-items:center; gap:9px; }
+  .step { width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+    background:var(--accent); color:#07160d; font-size:12px; font-weight:800; }
+  label { display:block; font-size:12px; color:var(--muted); margin:12px 0 6px; text-transform:uppercase; letter-spacing:.08em; }
+  input { width:100%; height:44px; padding:0 14px; border-radius:11px; border:1px solid var(--line);
+    background:#0e0e17; color:var(--text); font-size:15px; outline:none; transition:border-color .15s, box-shadow .15s; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(30,215,96,.15); }
+  button { cursor:pointer; border:none; border-radius:11px; font-size:14px; font-weight:600;
+    padding:0 20px; height:44px; background:var(--accent); color:#07160d; transition:transform .1s, background .15s; }
+  button:hover { background:var(--accent-2); }
+  button:active { transform:translateY(1px); }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
+  button.ghost:hover { background:var(--card); }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  .row { display:flex; gap:10px; align-items:center; }
+  .row > * { flex:1; }
+  .row > button { flex:0 0 auto; }
+  .out { margin-top:14px; background:#0b0b13; border:1px dashed var(--line); border-radius:11px;
+    padding:13px 14px; font-family:var(--mono); font-size:13px; word-break:break-all; min-height:48px;
+    color:var(--accent-2); }
+  .muted { color:var(--muted); font-size:13px; line-height:1.6; }
+  .err { color:var(--danger); font-size:13px; min-height:18px; margin-top:10px; }
+  .apps { list-style:none; padding:0; margin:14px 0 0; max-height:260px; overflow-y:auto; }
+  .apps li { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:10px;
+    background:var(--card); margin-bottom:8px; font-size:13px; }
+  .apps .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .apps .id { color:var(--muted); font-family:var(--mono); font-size:11px; }
+  .who { display:flex; gap:10px; align-items:center; font-size:14px; color:var(--muted); }
+  .who b { color:var(--text); }
+  pre { background:#0b0b13; border:1px solid var(--line); border-radius:12px; padding:14px 16px;
+    overflow:auto; font-family:var(--mono); font-size:12.5px; line-height:1.6; color:#cfe8d8; }
+  .hidden { display:none !important; }
+  .pill { display:inline-block; font-size:11px; padding:3px 9px; border-radius:999px;
+    background:rgba(30,215,96,.12); color:var(--accent-2); border:1px solid rgba(30,215,96,.25); }
+  .foot { margin-top:34px; color:var(--muted); font-size:12.5px; text-align:center; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"><img src="/icon.png" alt=""></span> Murzila Music API</div>
+  <div class="spacer"></div>
+  <a class="link" href="/player">Плеер</a>
+  <a class="link" href="/">Сайт</a>
+  <a class="link" href="/api/health">Health</a>
+</nav>
+
+<div class="wrap">
+  <h1>Murzila Music API</h1>
+  <p class="lead">
+    Лёгкий API для собственной музыки. Войди в аккаунт, создай приложение и получи
+    <b>API-ключ</b> — он один раз показывается целиком. Ключ меняется на Bearer-токен,
+    а токен открывает <code>/api/music/library</code>, файлы и обложки только твоего аккаунта.
+    <span class="pill">без чужих треков</span>
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <h2><span class="step">1</span> Вход в аккаунт</h2>
+      <div id="loginBox">
+        <label for="email">Почта</label>
+        <input id="email" type="email" autocomplete="username" placeholder="you@mail.ru">
+        <label for="password">Пароль</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••">
+        <div class="row" style="margin-top:16px">
+          <button id="loginBtn">Войти</button>
+          <button class="ghost" id="registerBtn" type="button">Регистрация</button>
+          <button class="ghost" id="loginCodeBtn" type="button">Войти по коду</button>
+        </div>
+        <div class="err" id="loginErr"></div>
+      </div>
+      <div id="loginCodeBox" class="hidden" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:14px">
+        <label for="codeEmail">Почта</label>
+        <input id="codeEmail" type="email" autocomplete="username" placeholder="you@mail.ru">
+        <label for="codeInput">Код из письма</label>
+        <input id="codeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
+        <div class="err" id="codeErr"></div>
+        <div class="out" id="codeHint">Код отправлен. Проверь почту.</div>
+        <div class="row" style="margin-top:12px">
+          <button id="codeSendBtn">Получить код</button>
+          <button id="codeVerifyBtn" class="ghost" style="display:none">Войти по коду</button>
+        </div>
+      </div>
+      <div id="meBox" class="hidden">
+        <div class="who">Вы вошли как <b id="meName"></b> <span id="meMail" class="muted"></span></div>
+        <div class="row" style="margin-top:16px">
+          <button class="ghost" id="logoutBtn">Выйти</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">2</span> Создать приложение</h2>
+      <label for="appName">Название приложения</label>
+      <input id="appName" placeholder="Мой плеер" maxlength="64">
+      <div class="row" style="margin-top:16px">
+        <button id="createBtn" disabled>Создать и получить ключ</button>
+      </div>
+      <div class="out" id="keyOut">API-ключ появится здесь.</div>
+      <div class="err" id="appErr"></div>
+      <div class="muted" style="margin-top:12px">Мои приложения:</div>
+      <ul class="apps" id="appsList"></ul>
+    </div>
+
+    <div class="card" id="regCodeCard">
+      <h2><span class="step">2</span> Регистрация по коду</h2>
+      <p class="muted">Регистрация тоже идёт через код из письма — пароль задаём потом, при входе по коду.</p>
+      <label for="regName">Имя</label>
+      <input id="regName" placeholder="Как к тебе обращаться">
+      <label for="regEmail">Почта</label>
+      <input id="regEmail" type="email" autocomplete="username" placeholder="you@mail.ru">
+      <label for="regPassword">Пароль</label>
+      <input id="regPassword" type="password" autocomplete="new-password" placeholder="от 6 символов">
+      <label for="regCode">Код из письма</label>
+      <input id="regCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
+      <div class="err" id="regErr"></div>
+      <div class="out" id="regHint">Код отправлен. Проверь почту.</div>
+      <div class="row" style="margin-top:12px">
+        <button id="regSendBtn">Получить код</button>
+        <button id="regVerifyBtn" class="ghost" style="display:none">Зарегистрироваться по коду</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">4</span> Восстановление пароля</h2>
+      <p class="muted">Забыли пароль? Запроси код по почте и задай новый — после сброса можно войти обычным паролем.</p>
+      <label for="forgotEmail">Почта</label>
+      <input id="forgotEmail" type="email" placeholder="you@mail.ru">
+      <button id="forgotSendBtn">Получить код</button>
+      <div class="hidden" id="forgotCodeGroup">
+        <label for="forgotCode">Код из письма</label>
+        <input id="forgotCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
+        <label for="forgotNew">Новый пароль</label>
+        <input id="forgotNew" type="password" placeholder="от 6 символов">
+        <button id="forgotResetBtn">Сбросить пароль</button>
+      </div>
+      <div class="err" id="forgotErr"></div>
+      <div class="out" id="forgotHint">Забыли пароль? Запроси код по почте и задай новый.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2><span class="step">3</span> Ключ → токен (30 дней)</h2>
+    <label for="apiKey">API-ключ</label>
+    <input id="apiKey" placeholder="вставь ключ из шага 2" autocomplete="off">
+    <div class="row" style="margin-top:16px">
+      <button id="tokenBtn">Получить токен</button>
+      <button class="ghost" id="copyBtn" type="button">Копировать токен</button>
+    </div>
+    <div class="out" id="tokenOut">Токен появится здесь.</div>
+    <div class="err" id="tokenErr"></div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Как пользоваться</h2>
+<pre># 1. Получить токен по API-ключу
+curl -X POST http://localhost:6001/api/token \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey":"ВАШ_КЛЮЧ"}'
+
+# 2. Список своих треков
+curl http://localhost:6001/api/music/library \
+  -H "Authorization: Bearer ВАШ_ТОКЕН"
+
+# 3. Стрим трека (перемотка работает через Range)
+curl http://localhost:6001/api/music/files/ID_ТРЕКА \
+  -H "Authorization: Bearer ВАШ_ТОКЕН"
+
+# 4. Обложка
+curl http://localhost:6001/api/music/cover/ID_ТРЕКА \
+  -H "Authorization: Bearer ВАШ_ТОКЕН"</pre>
+    <p class="muted">
+      Токен можно передавать и как <code>?token=</code> — так работают HTML-плееры
+      и &lt;audio&gt;, которые не умеют заголовки.
+    </p>
+  </div>
+
+  <div class="foot">Murzila-Music · beta 1.3 · API отдаёт только файлы твоего аккаунта</div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let me = null;
+
+  function err(id, text) { $(id).textContent = text || ""; }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, { credentials: "same-origin", ...options });
+    let data = null;
+    try { data = await res.json(); } catch { }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function refreshMe() {
+    const r = await api("/api/web/me");
+    if (r.ok && r.data && r.data.signedIn) {
+      me = r.data.user;
+      $("loginBox").classList.add("hidden");
+      $("meBox").classList.remove("hidden");
+      $("meName").textContent = me.name || "аккаунт";
+      $("meMail").textContent = me.email ? "· " + me.email : "";
+      $("createBtn").disabled = false;
+      await loadApps();
+    } else {
+      me = null;
+      $("loginBox").classList.remove("hidden");
+      $("meBox").classList.add("hidden");
+      $("createBtn").disabled = true;
+      $("appsList").innerHTML = "";
+    }
+  }
+
+  async function loadApps() {
+    const r = await api("/api/apps");
+    const list = $("appsList");
+    list.innerHTML = "";
+    if (!r.ok || !Array.isArray(r.data)) return;
+    if (r.data.length === 0) {
+      list.innerHTML = '<li class="muted">Пока нет приложений</li>';
+      return;
+    }
+    for (const app of r.data) {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = app.name;
+      const id = document.createElement("span");
+      id.className = "id";
+      id.textContent = app.id.slice(0, 8);
+      li.append(name, id);
+      list.append(li);
+    }
+  }
+
+  $("loginBtn").addEventListener("click", async () => {
+    err("loginErr", "");
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (!email || !password) { err("loginErr", "Введи почту и пароль."); return; }
+    const r = await api("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    if (!r.ok) { err("loginErr", "Неверная почта или пароль."); return; }
+    $("password").value = "";
+    await refreshMe();
+  });
+
+  $("registerBtn").addEventListener("click", async () => {
+    err("loginErr", "");
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    const name = (email.split("@")[0] || "Слушатель");
+    if (!email || password.length < 6) {
+      err("loginErr", "Нужна почта и пароль от 6 символов (можно зарегистрироваться здесь).");
+      return;
+    }
+    const r = await api("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password })
+    });
+    if (!r.ok) { err("loginErr", (r.data && r.data.error) || "Не удалось зарегистрироваться."); return; }
+    $("password").value = "";
+    await refreshMe();
+  });
+
+  $("logoutBtn").addEventListener("click", async () => {
+    await api("/api/web/logout", { method: "POST" });
+    $("keyOut").textContent = "API-ключ появится здесь.";
+    $("tokenOut").textContent = "Токен появится здесь.";
+    await refreshMe();
+  });
+
+  $("loginCodeBtn").addEventListener("click", async () => {
+    err("codeErr", "");
+    const email = ($("codeEmail").value || $("email").value).trim();
+    const password = $("password").value;
+    if (!email) { err("codeErr", "Введи почту."); return; }
+    if (password.length < 6) { err("codeErr", "Нужен пароль от 6 символов."); return; }
+    const r = await api("/api/auth/login/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    if (!r.ok) { err("codeErr", (r.data && r.data.error) || "Не удалось отправить код."); return; }
+    $("codeHint").textContent = (r.data && r.data.testMode && r.data.testCode) ? "Тестовый режим сервера: твой код — " + r.data.testCode : "Код отправлен. Проверь почту.";
+    $("codeVerifyBtn").style.display = ""; $("codeSendBtn").style.display = "none";
+  });
+
+  $("codeSendBtn").addEventListener("click", async () => {
+    err("codeErr", "");
+    const email = ($("codeEmail").value || $("email").value).trim();
+    const password = $("password").value;
+    if (!email) { err("codeErr", "Введи почту."); return; }
+    if (password.length < 6) { err("codeErr", "Нужен пароль от 6 символов."); return; }
+    const r = await api("/api/auth/login/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    if (!r.ok) { err("codeErr", (r.data && r.data.error) || "Не удалось отправить код."); return; }
+    $("codeHint").textContent = (r.data && r.data.testMode && r.data.testCode) ? "Тестовый режим сервера: твой код — " + r.data.testCode : "Код отправлен. Проверь почту.";
+    $("codeVerifyBtn").style.display = ""; $("codeSendBtn").style.display = "none";
+  });
+
+  $("codeVerifyBtn").addEventListener("click", async () => {
+    err("codeErr", "");
+    const email = ($("codeEmail").value || $("email").value).trim();
+    const code = $("codeInput").value.trim();
+    if (code.length !== 6) { err("codeErr", "Введи 6-значный код."); return; }
+    const r = await api("/api/auth/login/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code }) });
+    if (!r.ok) { err("codeErr", (r.data && r.data.error) || "Неверный код."); return; }
+    await refreshMe();
+    $("loginCodeBox").classList.add("hidden");
+  });
+
+  async function doRegCodeSend() {
+    err("regErr", "");
+    const name = $("regName").value.trim();
+    const email = $("regEmail").value.trim();
+    const password = $("regPassword").value;
+    if (!email || password.length < 6) { err("regErr", "Нужна почта и пароль от 6 символов."); return; }
+    const r = await api("/api/auth/register/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, password }) });
+    if (!r.ok) { err("regErr", (r.data && r.data.error) || "Не удалось отправить код."); return; }
+    $("regHint").textContent = (r.data && r.data.testMode && r.data.testCode) ? "Тестовый режим сервера: твой код — " + r.data.testCode : "Код отправлен. Проверь почту.";
+    $("regVerifyBtn").style.display = ""; $("regSendBtn").style.display = "none";
+  }
+
+  async function doRegCodeVerify() {
+    err("regErr", "");
+    const email = ($("regEmail").value || $("email").value).trim();
+    const code = $("regCode").value.trim();
+    if (code.length !== 6) { err("regErr", "Введи 6-значный код."); return; }
+    const r = await api("/api/auth/register/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code }) });
+    if (!r.ok) { err("regErr", (r.data && r.data.error) || "Неверный код."); return; }
+    await refreshMe();
+    $("regCodeCard").classList.add("hidden");
+  }
+
+  async function doForgotSend() {
+    err("forgotErr", "");
+    const email = $("forgotEmail").value.trim();
+    if (!email) { err("forgotErr", "Введи почту."); return; }
+    const r = await api("/api/auth/forgot/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    if (!r.ok) { err("forgotErr", (r.data && r.data.error) || "Не удалось отправить код."); return; }
+    const group = $("forgotCodeGroup");
+    group.classList.remove("hidden");
+    $("forgotCode").value = ""; $("forgotNew").value = "";
+    $("forgotHint").textContent = (r.data && r.data.maskedEmail ? "Код отправлен на " + r.data.maskedEmail : "Код отправлен.") + (r.data && r.data.testMode && r.data.testCode ? " Тестовый код — " + r.data.testCode : "");
+  }
+
+  async function doForgotReset() {
+    err("forgotErr", "");
+    const email = $("forgotEmail").value.trim();
+    const code = $("forgotCode").value.trim();
+    const newPass = $("forgotNew").value;
+    if (code.length !== 6) { err("forgotErr", "Введи 6-значный код."); return; }
+    if (newPass.length < 6) { err("forgotErr", "Новый пароль должен быть не короче 6 символов."); return; }
+    const r = await api("/api/auth/forgot/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code, newPassword: newPass }) });
+    if (!r.ok) { err("forgotErr", (r.data && r.data.error) || "Не удалось сбросить пароль."); return; }
+    await refreshMe();
+    $("forgotCodeGroup").classList.add("hidden");
+  }
+
+  async function doLoginCodeSend() {
+    err("codeErr", "");
+    const email = ($("codeEmail").value || $("email").value).trim();
+    const password = $("password").value;
+    if (!email) { err("codeErr", "Введи почту."); return; }
+    if (password.length < 6) { err("codeErr", "Нужен пароль от 6 символов."); return; }
+    const r = await api("/api/auth/login/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    if (!r.ok) { err("codeErr", (r.data && r.data.error) || "Не удалось отправить код."); return; }
+    $("codeHint").textContent = (r.data && r.data.testMode && r.data.testCode) ? "Тестовый режим сервера: твой код — " + r.data.testCode : "Код отправлен. Проверь почту.";
+    $("codeVerifyBtn").style.display = ""; $("codeSendBtn").style.display = "none";
+  }
+
+  async function doLoginCodeVerify() {
+    err("codeErr", "");
+    const email = ($("codeEmail").value || $("email").value).trim();
+    const code = $("codeInput").value.trim();
+    if (code.length !== 6) { err("codeErr", "Введи 6-значный код."); return; }
+    const r = await api("/api/auth/login/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code }) });
+    if (!r.ok) { err("codeErr", (r.data && r.data.error) || "Неверный код."); return; }
+    await refreshMe();
+    $("loginCodeBox").classList.add("hidden");
+  }
+
+  $("codeSendBtn").addEventListener("click", doLoginCodeSend);
+  $("codeVerifyBtn").addEventListener("click", doLoginCodeVerify);
+  $("regSendBtn").addEventListener("click", doRegCodeSend);
+  $("regVerifyBtn").addEventListener("click", doRegCodeVerify);
+  $("forgotSendBtn").addEventListener("click", doForgotSend);
+  $("forgotResetBtn").addEventListener("click", doForgotReset);
+
+  $("createBtn").addEventListener("click", async () => {
+    err("appErr", "");
+    const name = $("appName").value.trim();
+    const r = await api("/api/apps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    if (!r.ok) { err("appErr", (r.data && r.data.error) || "Не удалось создать приложение."); return; }
+    $("keyOut").textContent = r.data.apiKey;
+    $("apiKey").value = r.data.apiKey;
+    $("appName").value = "";
+    await loadApps();
+    await getToken();
+  });
+
+  async function getToken() {
+    err("tokenErr", "");
+    const apiKey = $("apiKey").value.trim();
+    if (!apiKey) { err("tokenErr", "Вставь API-ключ."); return; }
+    const r = await api("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey })
+    });
+    if (!r.ok) { err("tokenErr", "Ключ неверный или отозван."); return; }
+    $("tokenOut").textContent = r.data.token;
+  }
+
+  $("tokenBtn").addEventListener("click", getToken);
+
+  $("copyBtn").addEventListener("click", async () => {
+    const text = $("tokenOut").textContent;
+    if (!text || text.startsWith("Токен")) return;
+    try { await navigator.clipboard.writeText(text); $("copyBtn").textContent = "Скопировано"; }
+    catch { $("tokenErr").textContent = "Не удалось скопировать — выдели вручную."; }
+    setTimeout(() => { $("copyBtn").textContent = "Копировать токен"; }, 1500);
+  });
+
+  // На публичном домене примеры должны показывать его, а не локальный порт.
+  document.querySelectorAll('pre').forEach(function (el) {
+    el.textContent = el.textContent.replace(/http:\/\/localhost:6001/g, location.origin);
+  });
+
+  refreshMe();
+})();
+</script>
+</body>
+</html>

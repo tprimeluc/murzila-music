@@ -1,0 +1,12 @@
+bin/
+obj/
+artifacts/
+*.log
+.env
+**/.env
+*.db
+*.db-shm
+*.db-wal
+.vs/
+.git/
+*.user

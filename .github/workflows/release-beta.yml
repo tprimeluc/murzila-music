@@ -1,0 +1,35 @@
+name: Beta release
+
+on:
+  push:
+    tags:
+      - 'v*-beta*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Test
+        run: dotnet test MurzilaMusic.slnx -c Release
+
+      - name: Publish beta (win-x64)
+        run: dotnet publish src/MurzilaMusic.App/MurzilaMusic.App.csproj -c Release -r win-x64 --self-contained false -o artifacts/Murzila-Music-beta-win-x64
+
+      - name: Zip
+        run: Compress-Archive -Path artifacts/Murzila-Music-beta-win-x64/* -DestinationPath artifacts/Murzila-Music-beta-win-x64.zip
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: artifacts/Murzila-Music-beta-win-x64.zip
+          body_path: CHANGELOG.md

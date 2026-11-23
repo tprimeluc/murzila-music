@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MurzilaMusic.App/MurzilaMusic.App.csproj" />
+    <Project Path="src/MurzilaMusic.Server/MurzilaMusic.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MurzilaMusic.Tests/MurzilaMusic.Tests.csproj" />
+  </Folder>
+</Solution>

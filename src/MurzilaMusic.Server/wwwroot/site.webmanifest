@@ -1,0 +1,13 @@
+{
+  "name": "Murzila Music",
+  "short_name": "Murzila",
+  "description": "Свой музыкальный плеер: библиотека, караоке, эквалайзер и скачивание.",
+  "start_url": "/player",
+  "display": "standalone",
+  "background_color": "#07090d",
+  "theme_color": "#22d36e",
+  "icons": [
+    { "src": "/icon.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }
+  ]
+}
