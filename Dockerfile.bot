@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY src/MurzilaBot/MurzilaBot.csproj ./
+RUN dotnet restore MurzilaBot.csproj
+COPY src/MurzilaBot/ ./
+RUN dotnet publish MurzilaBot.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+# ffmpeg нужен для голосового стриминга из Murzila API
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/publish ./
+ENTRYPOINT ["dotnet", "MurzilaBot.dll"]
