@@ -106,6 +106,8 @@ app.MapGet("/api/token", (IWebHostEnvironment env) => HtmlPage(env, "/apitoken/i
 
 app.MapGet("/api", () => Results.Redirect("/api/token"));
 
+app.MapGet("/download", (IWebHostEnvironment env) => HtmlPage(env, "/download/index.html"));
+
 app.MapGet("/files", (IWebHostEnvironment env) => HtmlPage(env, "/filesharing/index.html"));
 
 app.MapGet("/api/info", (YooKassaClient payment, SmtpMailer mail, GoogleAuth googleAuth,

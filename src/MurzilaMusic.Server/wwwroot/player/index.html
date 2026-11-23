@@ -183,6 +183,9 @@
   .msg{min-height:18px;margin-top:9px;font-size:12px;color:#ff8b8b}
   .msg.ok{color:var(--accent2)}
   .hint{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5}
+  .codebox{margin-top:14px;padding:14px 16px;border-radius:14px;border:1px solid rgba(34,211,110,.45);background:linear-gradient(135deg,rgba(34,211,110,.12),rgba(90,120,255,.08));text-align:center}
+  .codebox-cap{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent2);margin-bottom:6px}
+  .codebox-value{font:700 30px/1.2 "Cascadia Code",Consolas,monospace;letter-spacing:10px;color:#fff;margin-bottom:10px;user-select:all}
   .filelist{margin-top:10px;max-height:210px;overflow:auto}
   .filerow{display:flex;gap:6px;margin-bottom:6px}
   .filerow input{height:34px;font-size:12.5px}
@@ -229,7 +232,26 @@
 
   .toast{position:fixed;left:50%;bottom:116px;transform:translateX(-50%) translateY(12px);background:#151b25;border:1px solid #2d3646;color:var(--text);padding:10px 16px;border-radius:999px;font-size:12.5px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:60;max-width:min(520px,92vw);text-align:center}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  audio{display:none}
+  .audio{display:none}
+
+  /* свежий современный слой поверх классического Spotify-вида */
+  body{background:radial-gradient(1000px 700px at 8% -12%,rgba(34,211,110,.10),transparent 58%),radial-gradient(900px 700px at 100% 0,rgba(90,110,255,.09),transparent 55%),var(--bg)}
+  .sidebar{background:rgba(7,9,13,.82);backdrop-filter:blur(18px)}
+  .topbar{background:rgba(10,12,18,.72)}
+  .hero{border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.36);background:linear-gradient(125deg,rgba(34,211,110,.26),rgba(30,70,160,.22) 52%,rgba(90,60,180,.18));backdrop-filter:blur(6px)}
+  .navitem{border-radius:12px;transition:background .18s,color .18s,transform .18s}
+  .navitem:hover{transform:translateX(3px)}
+  .navitem.active{box-shadow:inset 3px 0 0 var(--accent)}
+  .btn{border-radius:12px;transition:transform .18s,box-shadow .18s,background .18s}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#0f9d50);border-color:transparent;box-shadow:0 12px 30px rgba(34,211,110,.25)}
+  .dialog{border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.65);background:linear-gradient(160deg,#141a25,#0e131c);border:1px solid #2a3446}
+  .table tbody tr{border-radius:12px;transition:background .15s}
+  .vizwrap{border-radius:14px;background:linear-gradient(180deg,#060a10,#0a0f17);border-color:#263044}
+  .stat,.srv,.card{border-radius:18px;background:linear-gradient(160deg,var(--panel),#101620);transition:transform .18s,border-color .18s}
+  .stat:hover,.srv:hover,.card:hover{transform:translateY(-3px);border-color:rgba(34,211,110,.35)}
+  input[type=range]::-webkit-slider-thumb{opacity:.9}
+
 </style>
 </head>
 <body>
@@ -270,6 +292,9 @@
       <button class="navitem" data-view="servers">
         <svg viewBox="0 0 24 24"><path d="M4 4h16v5H4zm0 6h16v5H4zm0 6h16v5H4zM6 6h2v1H6zm0 6h2v1H6zm0 6h2v1H6z"/></svg>Серверы и API
       </button>
+      <a class="navitem" href="/download">
+        <svg viewBox="0 0 24 24"><path d="M11 3h2v10.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3zM4 19h16v2H4z"/></svg>Скачать приложение
+      </a>
     </div>
     <div class="spacer">
       <div class="navcap">Недавние</div>
@@ -468,6 +493,11 @@
       <label for="authCodeInput">Код из письма</label>
       <input id="authCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
       <div class="hint" id="authCodeHint"></div>
+      <div class="codebox hidden" id="authCodeBox">
+        <div class="codebox-cap">Письмо недоступно — вот твой код</div>
+        <div class="codebox-value" id="authCodeValue"></div>
+        <button class="btn small" id="authCodeCopy" type="button">Скопировать код</button>
+      </div>
       <div class="msg" id="authMsg"></div>
       <button class="submit" id="authSendCode">Получить код</button>
       <button class="submit" id="authVerifyCode" style="display:none">Войти по коду</button>
@@ -491,6 +521,11 @@
       <label for="authForgotEmail">Почта</label>
       <input id="authForgotEmail" type="email" placeholder="you@mail.ru">
       <button class="submit" id="authForgotSend">Получить код</button>
+      <div class="codebox hidden" id="authForgotCodeBox">
+        <div class="codebox-cap">Письмо недоступно — вот твой код</div>
+        <div class="codebox-value" id="authForgotCodeValue"></div>
+        <button class="btn small" id="authForgotCopy" type="button">Скопировать код</button>
+      </div>
       <div id="authForgotCodeGroup" class="hidden">
         <label for="authForgotCode">Код из письма</label>
         <input id="authForgotCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="XXXXXX">
@@ -1533,9 +1568,15 @@
       });
       sendBtn.disabled = false;
       if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Не удалось отправить код.'; return; }
-      $('authCodeHint').textContent = (r.data && r.data.testMode && r.data.testCode)
-        ? 'Тестовый режим сервера: твой код — ' + r.data.testCode
-        : 'Код отправлен. Проверь почту.';
+      const testCode = r.data && r.data.testCode;
+      if (testCode) {
+        $('authCodeBox').classList.remove('hidden');
+        $('authCodeValue').textContent = testCode;
+        $('authCodeHint').textContent = 'Введи этот код ниже — письмо не отправлялось.';
+      } else {
+        $('authCodeBox').classList.add('hidden');
+        $('authCodeHint').textContent = 'Код отправлен. Проверь почту.';
+      }
       $('authVerifyCode').style.display = '';
       sendBtn.style.display = 'none';
       $('authCodeInput').focus();
@@ -1560,14 +1601,14 @@
   $('authCodeLink').addEventListener('click', () => {
     authCodeFor = 'login'; authCodeEmail = $('authEmail').value.trim();
     showAuthPanel('code'); $('authCodeEmail').value = authCodeEmail; $('authCodeInput').value = '';
-    $('authCodeHint').textContent = ''; $('authVerifyCode').style.display = 'none'; $('authSendCode').style.display = '';
+    $('authCodeHint').textContent = ''; $('authCodeBox').classList.add('hidden'); $('authVerifyCode').style.display = 'none'; $('authSendCode').style.display = '';
     $('authSendCode').disabled = false; $('authMsg').textContent = '';
     $('authCodeEmail').focus();
   });
   $('authCodeLinkReg').addEventListener('click', () => {
     authCodeFor = 'reg'; authCodeEmail = $('authEmailReg').value.trim();
     showAuthPanel('code'); $('authCodeEmail').value = authCodeEmail; $('authCodeInput').value = '';
-    $('authCodeHint').textContent = ''; $('authVerifyCode').style.display = 'none'; $('authSendCode').style.display = '';
+    $('authCodeHint').textContent = ''; $('authCodeBox').classList.add('hidden'); $('authVerifyCode').style.display = 'none'; $('authSendCode').style.display = '';
     $('authSendCode').disabled = false; $('authMsg').textContent = '';
     $('authCodeEmail').focus();
   });
@@ -1585,7 +1626,15 @@
       const group = $('authForgotCodeGroup');
       group.classList.remove('hidden');
       $('authForgotCode').value = ''; $('authForgotNew').value = '';
-      $('authForgotInfo').textContent = (r.data && r.data.maskedEmail ? 'Код отправлен на ' + r.data.maskedEmail : 'Код отправлен.') + (r.data && r.data.testMode && r.data.testCode ? ' Тестовый код — ' + r.data.testCode : '');
+      const testCode = r.data && r.data.testCode;
+      if (testCode) {
+        $('authForgotCodeBox').classList.remove('hidden');
+        $('authForgotCodeValue').textContent = testCode;
+        $('authForgotInfo').textContent = 'Письмо не отправлялось — используй код ниже.';
+      } else {
+        $('authForgotCodeBox').classList.add('hidden');
+        $('authForgotInfo').textContent = (r.data && r.data.maskedEmail ? 'Код отправлен на ' + r.data.maskedEmail : 'Код отправлен.') + ' Если письма нет — проверь папку «Спам».';
+      }
       $('authForgotCode').focus();
     } catch { sendBtn.disabled = false; msg.textContent = 'Не удалось отправить код.'; }
   }
@@ -1607,6 +1656,14 @@
   $('authForgotSend').addEventListener('click', submitForgot);
   $('authForgotReset').addEventListener('click', submitForgotReset);
   $('authForgotBack').addEventListener('click', () => setAuthMode('login'));
+  function copyTestCode(value, button) {
+    navigator.clipboard?.writeText(value).then(() => {
+      const old = button.textContent; button.textContent = 'Скопировано ✓';
+      setTimeout(() => { button.textContent = old; }, 1500);
+    }).catch(() => {});
+  }
+  $('authCodeCopy').addEventListener('click', () => copyTestCode($('authCodeValue').textContent, $('authCodeCopy')));
+  $('authForgotCopy').addEventListener('click', () => copyTestCode($('authForgotCodeValue').textContent, $('authForgotCopy')));
 
   $('logoutBtn').addEventListener('click', async () => {
     await api('/api/web/logout', { method: 'POST' });
