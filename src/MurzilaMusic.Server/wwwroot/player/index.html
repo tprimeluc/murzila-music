@@ -115,6 +115,7 @@
   .iconbtn{width:30px;height:30px;border-radius:50%;border:none;background:none;color:var(--muted2);display:grid;place-items:center}
   .iconbtn:hover{background:var(--card2);color:var(--text)}
   .iconbtn.on{color:var(--accent)}
+  .iconbtn.del:hover{color:var(--danger);background:rgba(255,107,107,.12)}
   .iconbtn svg{width:15px;height:15px;fill:currentColor}
   .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:54px 20px;gap:9px}
   .empty h3{color:var(--text);margin:0;font-size:17px}
@@ -669,6 +670,9 @@
   function micSvg() {
     return '<svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4zm7 9a1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V23h-2v-2.06A9 9 0 0 1 3 12a1 1 0 1 1 2 0 7 7 0 0 0 14 0z"/></svg>';
   }
+  function trashSvg() {
+    return '<svg viewBox="0 0 24 24"><path d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H4V5h4l1-2zM9 10v8h2v-8H9zm4 0v8h2v-8h-2z"/></svg>';
+  }
   function globeSvg() {
     return '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.6 0 3 .5 4.2 1.4-.8 1.4-1.2 3-1.2 4.6 0 .5 0 1 .1 1.4-1.8-1-3.9-1.6-6.1-1.7.9-1.7 1.4-3.5 1.5-5.3H12zM8 5.8c-.2 1.6-.7 3.1-1.5 4.5-1.8-.2-3.6.2-5.1 1.1A8 8 0 0 1 8 5.8zM4.4 12c1-.5 2.2-.7 3.4-.7.4 1.9 1 3.6 2 5.1-1.3.6-2.5 1.5-3.4 2.6a8 8 0 0 1-2-7zM12 20c-1.6 0-3-.5-4.2-1.4.8-1.4 1.2-3 1.2-4.6 0-.5 0-1-.1-1.4 1.8 1 3.9 1.6 6.1 1.7-.9 1.7-1.4 3.5-1.5 5.3H12zm4-1.8c.2-1.6.7-3.1 1.5-4.5 1.8.2 3.6-.2 5.1-1.1A8 8 0 0 1 16 18.2zm3.6-6.2c-1 .5-2.2.7-3.4.7-.4-1.9-1-3.6-2-5.1 1.3-.6 2.5-1.5 3.4-2.6a8 8 0 0 1 2 7z"/></svg>';
   }
@@ -754,6 +758,23 @@
     t.allowExternal = !t.allowExternal;
     toast(t.allowExternal ? 'Трек доступен другим слушателям' : 'Доступ для других закрыт', true);
     applyFilter();
+  }
+
+  async function deleteOwnTrack(t) {
+    if (!t || t.shared) return;
+    if (!confirm('Удалить трек «' + t.title + '» из своей библиотеки? Файл с устройства останется.')) return;
+    const r = await api('/api/cloud/tracks/' + safeId(t.id), { method: 'DELETE' });
+    if (!r.ok) { toast((r.data && r.data.error) || 'Не удалось удалить трек'); return; }
+    if (current() === t) {
+      audio.pause(); audio.removeAttribute('src'); setPlaying(false);
+      state.index = -1; state.currentTrack = null;
+    }
+    state.tracks = state.tracks.filter(x => x.id !== t.id);
+    state.favorite.delete(t.id);
+    try { localStorage.setItem(LS_FAV, JSON.stringify([...state.favorite])); } catch { }
+    toast('Трек удалён', true);
+    applyFilter();
+    renderNow();
   }
 
   /* ---------- views ---------- */
@@ -872,7 +893,11 @@
       sh.title = t.allowExternal ? 'Закрыть доступ для других' : 'Разрешить другим слушать (я артист)';
       sh.addEventListener('click', e => { e.stopPropagation(); toggleShared(t); });
 
-      box.append(fav, kar, dl, sh);
+      const del = document.createElement('button');
+      del.className = 'iconbtn del'; del.innerHTML = trashSvg(); del.title = 'Удалить трек';
+      del.addEventListener('click', e => { e.stopPropagation(); deleteOwnTrack(t); });
+
+      box.append(fav, kar, dl, sh, del);
       actions.append(box);
 
       tr.append(num, main, al, du, actions);
