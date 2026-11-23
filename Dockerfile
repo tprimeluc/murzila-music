@@ -1,9 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY src/MurzilaMusic.Server/MurzilaMusic.Server.csproj ./
-RUN dotnet restore MurzilaMusic.Server.csproj
-COPY src/MurzilaMusic.Server/ ./
-RUN dotnet publish MurzilaMusic.Server.csproj -c Release -o /app/publish --no-restore
+# Сервер включает файлы из соседнего MurzilaMusic.Shared — копируем весь src.
+COPY src/ ./
+RUN dotnet restore MurzilaMusic.Server/MurzilaMusic.Server.csproj
+RUN dotnet publish MurzilaMusic.Server/MurzilaMusic.Server.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
