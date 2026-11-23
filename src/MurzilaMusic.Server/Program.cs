@@ -974,7 +974,7 @@ app.MapPost("/api/auth/forgot/request-code", async (ForgotRequest request, Db da
     });
 });
 
-app.MapPost("/api/auth/forgot/reset", async (ResetPasswordRequest request, Db database) =>
+app.MapPost("/api/auth/forgot/reset", async (ResetPasswordRequest request, Db database, HttpContext http) =>
 {
     string email = (request.Email ?? "").Trim().ToLowerInvariant();
     string code = (request.Code ?? "").Trim();
@@ -1024,6 +1024,7 @@ app.MapPost("/api/auth/forgot/reset", async (ResetPasswordRequest request, Db da
 
     string token = await CreateSessionAsync(database, userId!);
     var user = await FindUserByIdAsync(database, userId!);
+    SignInCookie(http, token); // перезаписываем гостевую cookie настоящей сессией
     return Results.Ok(new AuthResult { Token = token, User = ToUserDto(user!) });
 });
 
@@ -1333,7 +1334,7 @@ app.MapGet("/api/auth/google/start", async (GoogleAuth auth, Db database, HttpCo
     return Results.Ok(new GoogleStartResult(auth.BuildAuthorizeUrl(state), state));
 });
 
-app.MapGet("/api/auth/google/callback", async (Db database, GoogleAuth auth,
+app.MapGet("/api/auth/google/callback", async (Db database, GoogleAuth auth, HttpContext http,
     string? code, string? state, string? error) =>
 {
     if (!string.IsNullOrWhiteSpace(error))
@@ -1440,6 +1441,7 @@ app.MapGet("/api/auth/google/callback", async (Db database, GoogleAuth auth,
         update.Parameters.AddWithValue("$state", state);
         await update.ExecuteNonQueryAsync();
     }
+    SignInCookie(http, token);
     return Results.Content(GooglePage("Готово", "Возвращайся в приложение — вход уже подхватится."), "text/html");
 });
 
@@ -1476,7 +1478,7 @@ app.MapGet("/api/auth/github/start", async (GitHubAuth auth, Db database, HttpCo
     return Results.Ok(new GoogleStartResult(auth.BuildAuthorizeUrl(state), state));
 });
 
-app.MapGet("/api/auth/github/callback", async (Db database, GitHubAuth auth,
+app.MapGet("/api/auth/github/callback", async (Db database, GitHubAuth auth, HttpContext http,
     string? code, string? state, string? error) =>
 {
     if (!string.IsNullOrWhiteSpace(error))
@@ -1542,6 +1544,7 @@ app.MapGet("/api/auth/github/callback", async (Db database, GitHubAuth auth,
         update.Parameters.AddWithValue("$state", state);
         await update.ExecuteNonQueryAsync();
     }
+    SignInCookie(http, token);
     return Results.Content(GooglePage("Готово", "Возвращайся в Murzila Music — вход уже подхватится."), "text/html");
 });
 

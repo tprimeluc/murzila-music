@@ -675,7 +675,11 @@
 
   async function api(path, opts = {}) {
     try {
-      const res = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...opts });
+      const headers = new Headers(opts.headers || {});
+      // Bearer всегда важнее старой гостевой cookie — иначе сервер считает гостем.
+      if (state.token && !headers.has('Authorization'))
+        headers.set('Authorization', 'Bearer ' + state.token);
+      const res = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...opts, headers });
       let data = null;
       try { data = await res.json(); } catch { }
       return { ok: res.ok, status: res.status, data };
