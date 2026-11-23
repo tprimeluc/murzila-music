@@ -8,7 +8,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: MURZILA_SERVER_URL
-        value: https://murzila-music.cc.cd
+        value: https://murzila-music.onrender.com
       - key: MURZILA_ADMIN_TOKEN
         generateValue: true
       - key: MURZILA_ALLOW_TEST_PAYMENTS
