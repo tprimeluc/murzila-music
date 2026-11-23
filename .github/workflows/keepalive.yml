@@ -1,0 +1,15 @@
+name: keep-alive
+
+# Бесплатно разбуживаем Render каждые 5 минут, чтобы не было задержки 50 секунд.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS --max-time 30 https://murzila-music.onrender.com/api/health || true
