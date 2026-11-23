@@ -506,6 +506,7 @@
     <h2>Murzila Music</h2>
     <p>Свой аккаунт и только своя музыка. Регистрация бесплатная.</p>
     <div class="tabs"><button id="tabLogin" class="active">Вход</button><button id="tabReg">Регистрация</button><button id="tabForgot">Сброс</button></div>
+    <div class="msg" id="authMsg"></div>
 
     <div id="authPanelLogin">
       <label for="authEmail">Почта</label>
@@ -513,7 +514,6 @@
       <label for="authPass">Пароль</label>
       <input id="authPass" type="password" placeholder="от 6 символов" autocomplete="current-password">
       <button class="submit" id="authSubmit">Войти</button>
-      <div class="msg" id="authMsg"></div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost" id="authCodeLink" type="button">Войти по коду из письма</button>
         <button class="btn ghost" id="authGoogle" type="button">Войти через Google</button>
@@ -532,7 +532,6 @@
         <div class="codebox-value" id="authCodeValue"></div>
         <button class="btn small" id="authCodeCopy" type="button">Скопировать код</button>
       </div>
-      <div class="msg" id="authMsg"></div>
       <button class="submit" id="authSendCode">Получить код</button>
       <button class="submit" id="authVerifyCode" style="display:none">Войти по коду</button>
       <div style="margin-top:10px;text-align:center"><button class="btn ghost" id="authCodeBack" type="button">← К обычному входу</button></div>
@@ -546,7 +545,6 @@
       <label for="authPassReg">Пароль</label>
       <input id="authPassReg" type="password" placeholder="от 6 символов" autocomplete="new-password">
       <button class="submit" id="authRegSubmit">Зарегистрироваться</button>
-      <div class="msg" id="authMsg"></div>
       <div style="margin-top:12px;text-align:right"><button class="btn ghost" id="authCodeLinkReg" type="button">Войти по коду после регистрации</button></div>
     </div>
 
@@ -567,7 +565,6 @@
         <input id="authForgotNew" type="password" placeholder="от 6 символов">
         <button class="submit" id="authForgotReset">Сбросить пароль</button>
       </div>
-      <div class="msg" id="authMsg"></div>
       <button class="btn primary hidden" id="authGoLogin" type="button" style="width:100%">Перейти к входу</button>
       <div style="margin-top:10px;text-align:center"><button class="btn ghost" id="authForgotBack" type="button">← К входу</button></div>
     </div>
