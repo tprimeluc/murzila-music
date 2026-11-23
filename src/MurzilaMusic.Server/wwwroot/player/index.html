@@ -1611,9 +1611,9 @@
     state.guest = false; state.token = token; state.user = (data && data.user) || null;
     state.tracks = []; state.view = []; state.index = -1; state.currentTrack = null;
     audio.pause(); audio.removeAttribute('src'); setPlaying(false);
-    $('loginBtn').classList.remove('hidden');
-    $('logoutBtn').classList.add('hidden');
-    $('uploadBtn').classList.add('hidden');
+    $('loginBtn').classList.add('hidden');
+    $('logoutBtn').classList.remove('hidden');
+    $('uploadBtn').classList.remove('hidden');
     $('who').textContent = (state.user && (state.user.name || state.user.email)) || '';
     $('authModal').classList.add('hidden');
     await loadLibrary();
@@ -1763,14 +1763,11 @@
       const r = await api('/api/auth/forgot/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, newPassword: newPass }) });
       resetBtn.disabled = false;
       if (!r.ok) { msg.textContent = (r.data && r.data.error) || 'Неверный код или пароль слишком короткий.'; return; }
-      if (r.data && r.data.token) { state.token = r.data.token; state.user = r.data.user; }
       $('authForgotCodeGroup').classList.add('hidden');
       $('authForgotCodeBox').classList.add('hidden');
       $('authForgotNew').value = '';
-      msg.className = 'msg ok';
-      msg.textContent = 'Пароль успешно изменён! Перейди во вкладку «Вход» и введи новый пароль.';
-      $('authGoLogin').classList.remove('hidden');
-      toast('Пароль успешно изменён', true);
+      toast('Пароль успешно изменён! Ты вошёл в аккаунт.', true);
+      await onAuthSuccess(r.data);
     } catch { resetBtn.disabled = false; msg.textContent = 'Не удалось сбросить пароль.'; }
   }
   $('authForgotSend').addEventListener('click', submitForgot);
