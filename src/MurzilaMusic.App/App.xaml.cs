@@ -54,17 +54,27 @@ public partial class App : Application
             }
 
             var main = new MainWindow();
-            MainWindow = main;
-            main.Show();
+
+            // Приложение всегда открывается во встроенном веб-плеере — без выбора и кнопок.
+            // Классическое окно показываем только если открыли аудиофайл через ассоциацию.
+            if (e.Args.Length > 0 && File.Exists(e.Args[0]))
+            {
+                MainWindow = main;
+                main.Show();
+                main.PlayLocalFile(e.Args[0]);
+            }
+            else
+            {
+                var web = new WebPlayerWindow();
+                web.Closed += (_, _) => main.Close();
+                MainWindow = web;
+                web.Show();
+            }
 
             // Если сервер запущен, подтягиваем актуальный тариф после оплаты в браузере.
             if (SettingsService.Current.ServerMode
                 && !string.IsNullOrWhiteSpace(SettingsService.Current.AccessToken))
                 _ = RefreshAccountAsync();
-
-            // Можно открыть файл двойным кликом по нему (Open with / drag on exe).
-            if (e.Args.Length > 0 && File.Exists(e.Args[0]))
-                main.PlayLocalFile(e.Args[0]);
         }
         catch (Exception ex)
         {

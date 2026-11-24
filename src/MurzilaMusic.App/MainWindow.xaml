@@ -301,9 +301,7 @@
                         <Button x:Name="BtnFeatures" Content="48 онлайн-возможностей"
                                 Style="{StaticResource NavButton}" Margin="0,2,0,0" Click="BtnFeatures_Click"
                                 ToolTip="Что уже работает в бесплатном онлайн-сервисе"/>
-                        <Button x:Name="BtnWebView" Content="Веб-плеер (встроенный)"
-                                Style="{StaticResource NavButton}" Margin="0,2,0,0" Click="BtnWebView_Click"
-                                ToolTip="Сайт внутри приложения + desktop-функции"/>
+
 
                         <TextBlock x:Name="TbSortLabel" Text="СОРТИРОВКА" Style="{StaticResource Caption}"
                                    Margin="14,20,0,7"/>

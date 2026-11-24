@@ -452,11 +452,6 @@ public partial class MainWindow : Window
 
     private void Search_Changed(object sender, TextChangedEventArgs e) => RefreshTracks();
 
-    private void BtnWebView_Click(object sender, RoutedEventArgs e)
-    {
-        new WebPlayerWindow { Owner = this }.Show();
-    }
-
     private void NavAll_Click(object sender, RoutedEventArgs e)
     {
         _filter = "all";
