@@ -218,6 +218,17 @@ public partial class AccountWindow : Window
             if (await ApiClient.IsAvailableAsync())
             {
                 var auth = await ApiClient.LoginAsync(email, password);
+                if (auth.Requires2Fa)
+                {
+                    string twoFaEmail = string.IsNullOrWhiteSpace(auth.Email) ? email : auth.Email!;
+                    ShowCodeStep("2fa", twoFaEmail, new ServerCodeResult
+                    {
+                        Email = twoFaEmail,
+                        TestMode = !string.IsNullOrWhiteSpace(auth.TestCode),
+                        TestCode = auth.TestCode
+                    });
+                    return;
+                }
                 ApplyServerAuth(auth);
             }
             else
@@ -334,7 +345,9 @@ public partial class AccountWindow : Window
         {
             ServerAuth auth = _codeMode == "register"
                 ? await ApiClient.VerifyRegisterCodeAsync(_codeEmail, code)
-                : await ApiClient.VerifyLoginCodeAsync(_codeEmail, code);
+                : _codeMode == "2fa"
+                    ? await ApiClient.VerifyLogin2FaAsync(_codeEmail, code)
+                    : await ApiClient.VerifyLoginCodeAsync(_codeEmail, code);
             ApplyServerAuth(auth);
             DialogResult = true;
             Close();

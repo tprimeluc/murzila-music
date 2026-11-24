@@ -7,24 +7,12 @@
       <Directory Id="INSTALLFOLDER" Name="Murzila Music">
         <Directory Id="Dir_Assets" Name="Assets">
         </Directory>
-        <Directory Id="Dir_runtimes" Name="runtimes">
-        <Directory Id="Dir_runtimes_win_x64" Name="win-x64">
-        <Directory Id="Dir_runtimes_win_x64_native" Name="native">
-        </Directory>
-        </Directory>
-        </Directory>
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="MurzilaMenu" Name="Murzila Music" />
     </StandardDirectory>
     <ComponentGroup Id="AppFiles">
-      <Component Id="C_Microsoft_Web_WebView2_Core_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_Core_dll" Source="$(var.SourceDir)\Microsoft.Web.WebView2.Core.dll" KeyPath="yes" /></Component>
-      <Component Id="C_Microsoft_Web_WebView2_Core_xml" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_Core_xml" Source="$(var.SourceDir)\Microsoft.Web.WebView2.Core.xml" KeyPath="yes" /></Component>
-      <Component Id="C_Microsoft_Web_WebView2_WinForms_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_WinForms_dll" Source="$(var.SourceDir)\Microsoft.Web.WebView2.WinForms.dll" KeyPath="yes" /></Component>
-      <Component Id="C_Microsoft_Web_WebView2_WinForms_xml" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_WinForms_xml" Source="$(var.SourceDir)\Microsoft.Web.WebView2.WinForms.xml" KeyPath="yes" /></Component>
-      <Component Id="C_Microsoft_Web_WebView2_Wpf_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_Wpf_dll" Source="$(var.SourceDir)\Microsoft.Web.WebView2.Wpf.dll" KeyPath="yes" /></Component>
-      <Component Id="C_Microsoft_Web_WebView2_Wpf_xml" Directory="INSTALLFOLDER" Guid="*"><File Id="F_Microsoft_Web_WebView2_Wpf_xml" Source="$(var.SourceDir)\Microsoft.Web.WebView2.Wpf.xml" KeyPath="yes" /></Component>
       <Component Id="C_MurzilaMusic_App_deps_json" Directory="INSTALLFOLDER" Guid="*"><File Id="F_MurzilaMusic_App_deps_json" Source="$(var.SourceDir)\MurzilaMusic.App.deps.json" KeyPath="yes" /></Component>
       <Component Id="C_MurzilaMusic_App_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_MurzilaMusic_App_dll" Source="$(var.SourceDir)\MurzilaMusic.App.dll" KeyPath="yes" /></Component>
       <Component Id="C_MurzilaMusic_App_exe" Directory="INSTALLFOLDER" Guid="*"><File Id="F_MurzilaMusic_App_exe" Source="$(var.SourceDir)\MurzilaMusic.App.exe" KeyPath="yes"><Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Murzila Music" WorkingDirectory="INSTALLFOLDER" Advertise="no" Icon="AppIcon" /><Shortcut Id="StartMenuShortcut" Directory="MurzilaMenu" Name="Murzila Music" WorkingDirectory="INSTALLFOLDER" Advertise="no" Icon="AppIcon" /></File></Component>
@@ -40,11 +28,9 @@
       <Component Id="C_NAudio_WinMM_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_NAudio_WinMM_dll" Source="$(var.SourceDir)\NAudio.WinMM.dll" KeyPath="yes" /></Component>
       <Component Id="C_NVorbis_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_NVorbis_dll" Source="$(var.SourceDir)\NVorbis.dll" KeyPath="yes" /></Component>
       <Component Id="C_TagLibSharp_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_TagLibSharp_dll" Source="$(var.SourceDir)\TagLibSharp.dll" KeyPath="yes" /></Component>
-      <Component Id="C_WebView2Loader_dll" Directory="INSTALLFOLDER" Guid="*"><File Id="F_WebView2Loader_dll" Source="$(var.SourceDir)\WebView2Loader.dll" KeyPath="yes" /></Component>
       <Component Id="C_Assets_murzila_icon_png" Directory="Dir_Assets" Guid="*"><File Id="F_Assets_murzila_icon_png" Source="$(var.SourceDir)\Assets\murzila-icon.png" KeyPath="yes" /></Component>
       <Component Id="C_Assets_murzila_ico" Directory="Dir_Assets" Guid="*"><File Id="F_Assets_murzila_ico" Source="$(var.SourceDir)\Assets\murzila.ico" KeyPath="yes" /></Component>
       <Component Id="C_Assets_visualizer_reference_png" Directory="Dir_Assets" Guid="*"><File Id="F_Assets_visualizer_reference_png" Source="$(var.SourceDir)\Assets\visualizer-reference.png" KeyPath="yes" /></Component>
-      <Component Id="C_runtimes_win_x64_native_WebView2Loader_dll" Directory="Dir_runtimes_win_x64_native" Guid="*"><File Id="F_runtimes_win_x64_native_WebView2Loader_dll" Source="$(var.SourceDir)\runtimes\win-x64\native\WebView2Loader.dll" KeyPath="yes" /></Component>
     </ComponentGroup>
     <Feature Id="MainFeature" Title="Murzila Music" Level="1" ConfigurableDirectory="INSTALLFOLDER"><ComponentGroupRef Id="AppFiles" /></Feature>
   </Package>

@@ -88,6 +88,11 @@ public sealed class ServerAuth
 {
     public string Token { get; set; } = "";
     public ServerUser User { get; set; } = new();
+
+    // Сервер может потребовать второй фактор вместо immediate-входа.
+    public bool Requires2Fa { get; set; }
+    public string? Email { get; set; }
+    public string? TestCode { get; set; }
 }
 
 public sealed class ServerPayment
@@ -261,6 +266,9 @@ public static class ApiClient
 
     public static Task<ServerAuth> VerifyLoginCodeAsync(string email, string code) =>
         PostAsync<ServerAuth>("/api/auth/login/verify", new { email, code }, null);
+
+    public static Task<ServerAuth> VerifyLogin2FaAsync(string email, string code) =>
+        PostAsync<ServerAuth>("/api/auth/login/2fa/verify", new { email, code }, null);
 
     public static Task<ServerGoogleStart> GoogleStartAsync(bool link = false, string? token = null) =>
         GetAsync<ServerGoogleStart>("/api/auth/google/start" + (link ? "?mode=link" : ""), token);
