@@ -604,6 +604,9 @@
   const LS_EQ = 'murzila_eq_v1';
   const LS_GUEST = 'murzila_guest_until_v1';
   const LS_LANG = 'murzila_lang_v1';
+  const LS_I18N = 'murzila_i18n_v1';
+  const TITLE_RU = document.title;
+  // Заголовок вкладки тоже переводим.
 
   // 50 языков: язык системы по умолчанию, ручной выбор в шапке.
   const LANGS = [
@@ -618,31 +621,288 @@
     ['fil','Filipino'],['ja','日本語'],['ko','한국어'],['zh','中文'],['ta','தமிழ்'],
     ['te','తెలుగు'],['ur','اردو'],['sw','Kiswahili'],['af','Afrikaans'],['et','Eesti']
   ];
-  const DICT = {
-    en: {'Вход':'Sign in','Регистрация':'Register','Сброс':'Reset','Войти':'Sign in','Добавить':'Add','Выйти':'Sign out','Моя музыка':'My music','Любимое':'Favorites','Очередь':'Queue','Чужие треки':'Other artists','Караоке':'Karaoke','Эквалайзер':'Equalizer','Скачать треки':'Download tracks','Статистика':'Stats','Серверы и API':'Servers and API','Поиск по трекам':'Search tracks','Играть всё':'Play all','Добавить треки':'Add tracks','Пока пусто':'Nothing here yet'},
-    de: {'Вход':'Anmelden','Регистрация':'Registrieren','Моя музыка':'Meine Musik','Караоке':'Karaoke','Войти':'Anmelden'},
-    fr: {'Вход':'Connexion','Регистрация':'Inscription','Моя музыка':'Ma musique','Караоке':'Karaoké','Войти':'Connexion'},
-    es: {'Вход':'Iniciar sesión','Регистрация':'Registro','Моя музыка':'Mi música','Караоке':'Karaoke','Войти':'Entrar'}
+  const LANG_CODES = new Set(LANGS.map(l => l[0]));
+
+  // Английский встроен, чтобы интерфейс переводился сразу. Остальные языки
+  // догружаются с сервера (/api/translate) и кэшируются в браузере.
+  const BUILTIN_EN = {
+    'Вход':'Sign in','Регистрация':'Register','Сброс':'Reset','Войти':'Sign in','Добавить':'Add',
+    'Выйти':'Sign out','Моя музыка':'My music','Любимое':'Favorites','Очередь':'Queue',
+    'Чужие треки':'Other artists','Караоке':'Karaoke','Эквалайзер':'Equalizer',
+    'Скачать треки':'Download tracks','Статистика':'Stats','Серверы и API':'Servers and API',
+    'Поиск по трекам':'Search tracks','Играть всё':'Play all','Добавить треки':'Add tracks',
+    'Пока пусто':'Nothing here yet','Библиотека':'Library','Инструменты':'Tools','Недавние':'Recent',
+    'Выбрать трек':'Choose a track','выбери трек':'choose a track','Найти текст':'Find lyrics',
+    'Включить эквалайзер':'Turn on equalizer','Выключен':'Off','Включён':'On',
+    '10 полос · Web Audio':'10 bands · Web Audio','Скачать текущий':'Download current',
+    'Скачать всё по очереди':'Download all in queue','Скачать':'Download',
+    'твоя библиотека':'your library','Топ исполнителей':'Top artists','проверка…':'checking…',
+    'Проверить снова':'Check again','JSON серверов':'Servers JSON','Health':'Health',
+    'Получить API-токен':'Get API token','Далее в очереди':'Up next',
+    'Murzila Music — веб-плеер':'Murzila Music — web player',
+    'Ничего не играет':'Nothing playing','Выбери трек':'Choose a track',
+    'подключение…':'connecting…','нужен вход':'sign in required','гость':'guest',
+    'Название':'Title','Альбом':'Album','Время':'Time','Вперёд':'Forward','Назад':'Back',
+    'Играть':'Play','Пауза':'Pause','Предыдущий':'Previous','Следующий':'Next',
+    'Перемешать':'Shuffle','Повтор':'Repeat','Плоский':'Flat','Поп':'Pop','Рок':'Rock',
+    'Джаз':'Jazz','Басы':'Bass','Вокал':'Vocal','Клуб':'Club',
+    'Нет доступа':'No access','Пока нет чужих треков':'No other artists tracks yet',
+    'Нечего скачивать':'Nothing to download','Пока нет данных':'No data yet',
+    'считаю':'calculating','нет доступа':'no access','Проверяю…':'Checking…','Загружаю…':'Loading…',
+    'работает':'works','не отвечает':'not responding','API работает':'API works',
+    'API не отвечает':'API not responding','Ищу текст…':'Searching lyrics…',
+    'Обычно занимает пару секунд.':'Usually takes a couple of seconds.',
+    'Караоке по твоим трекам':'Karaoke for your tracks','Текста пока нет':'No lyrics yet',
+    'Включи трек с текстом — строки подсвечиваются в такт. Клик по строке перематывает.':'Play a track with lyrics — lines highlight in sync. Click a line to seek.',
+    'Текст не найден. Добавь .lrc в приложении — он появится здесь.':'Lyrics not found. Add .lrc in the app — it will appear here.',
+    'Добавь .lrc в приложении или нажми «Найти текст».':'Add .lrc in the app or click "Find lyrics".',
+    'Караоке-поиск доступен после входа в аккаунт.':'Lyrics search is available after signing in.',
+    'Войди в аккаунт, чтобы слушать треки артистов.':'Sign in to listen to artists tracks.',
+    'Артисты сами включают доступ к своим трекам — здесь появятся только такие.':'Artists enable access to their own tracks — only those appear here.',
+    'Сначала добавь свои треки.':'Add your tracks first.','Сначала выбери трек':'Choose a track first',
+    'Сначала войди в аккаунт':'Sign in first',
+    'Скачиваются только твои собственные файлы из библиотеки. Чужие треки сервер не отдаёт.':'Only your own files from the library can be downloaded. The server does not serve other artists tracks.',
+    'Свой аккаунт и только своя музыка. Регистрация бесплатная.':'Your account and only your music. Registration is free.',
+    'Двухфакторная защита':'Two-factor authentication',
+    'После включения при каждом входе нужен код из письма. Это защитит аккаунт.':'After enabling, every sign in requires a code from email. This protects your account.',
+    'Добавить свои треки':'Add your tracks',
+    'Файлы с твоего устройства. Название, артист и альбом попадут в библиотеку, приложение и API.':'Files from your device. Title, artist and album go to the library, app and API.',
+    'Имя':'Name','Почта':'Email','Пароль':'Password','от 6 символов':'at least 6 characters',
+    'Как к тебе обращаться':'What should we call you','Новый пароль':'New password',
+    'Текущий пароль':'Current password','Код для подтверждения':'Confirmation code',
+    'Включить 2FA':'Enable 2FA','Выключить 2FA':'Disable 2FA',
+    'Подтвердить включение':'Confirm enabling','Выключить 2FA — введи пароль':'Disable 2FA — enter password',
+    'Закрыть':'Close','Загрузить':'Upload','Выбрать файлы':'Choose files',
+    'Артист (для всех)':'Artist (for all)','Альбом (для всех)':'Album (for all)',
+    'Неизвестный артист':'Unknown artist','Без альбома':'No album','Без названия':'Untitled',
+    'Войти по коду из письма':'Sign in with email code','Войти через GitHub':'Sign in with GitHub',
+    'Войти по коду':'Sign in with code','Войти по коду после регистрации':'Sign in with code after registration',
+    'Забыли пароль? Введи почту — пришлём код, и задай новый.':'Forgot password? Enter email — we will send a code, then set a new one.',
+    'Письмо недоступно — вот твой код':'Email is unavailable — here is your code',
+    'Письмо не отправлялось — используй код ниже.':'No email was sent — use the code below.',
+    'Код отправлен.':'Code sent.','Код отправлен на почту.':'Code sent to email.',
+    'Если письма нет — проверь папку «Спам».':'If there is no email — check your Spam folder.',
+    'Введи 6-значный код.':'Enter the 6-digit code.','Сбросить пароль':'Reset password',
+    'Перейти к входу':'Go to sign in','Скопировать код':'Copy code','Скопировано ✓':'Copied ✓',
+    'Получить код':'Get code','Код из письма':'Email code','Открыть':'Open','Убрать':'Remove',
+    'Ты вошёл в аккаунт':'You are signed in','Трек удалён':'Track deleted',
+    'Трек доступен другим слушателям':'Track is available to other listeners',
+    'Доступ для других закрыт':'Access for others is closed',
+    'В библиотеке пока нет треков. Добавь свои файлы.':'No tracks in the library yet. Add your files.',
+    'В любимом пока пусто. Нажми сердечко у трека.':'No favorites yet. Click the heart on a track.',
+    '48 онлайн-возможностей':'48 online features',
+    'Свои треки, караоке, эквалайзер и API. Без чужих песен.':'Your tracks, karaoke, equalizer and API. No other artists songs.',
+    'Все права защищены.':'All rights reserved.',
+    'ТВОЯ БИБЛИОТЕКА · ТОЛЬКО СВОЯ МУЗЫКА':'YOUR LIBRARY · ONLY YOUR MUSIC',
+    'Слушай свои треки, тексты и обложки. Гостевой доступ — 5 часов, до 5000 треков. Треки длиннее 6 минут требуют входа и 5 ₽.':'Listen to your tracks, lyrics and covers. Guest access — 5 hours, up to 5000 tracks. Tracks longer than 6 minutes require sign in and 5 ₽.',
+    'Войди в аккаунт или добавь свои файлы — они появятся здесь и в приложении.':'Sign in or add your files — they will appear here and in the app.',
+    'только с разрешения артиста':'only with the artist permission',
+    'Настройки сохраняются в браузере. Эквалайзер работает после нажатия Play.':'Settings are saved in the browser. The equalizer works after you press Play.',
+    'Гостевой доступ — 5 часов, до 5000 треков. Треки длиннее 6 минут требуют входа и 5 ₽.':'Guest access — 5 hours, up to 5000 tracks. Tracks longer than 6 minutes require sign in and 5 ₽.',
+    'трек':'track','трека':'tracks','треков':'tracks','альбомов':'albums',
+    'исполнителей':'artists','кГц':'kHz','Гц':'Hz','дБ':'dB','Порт':'Port',
+    'онлайн ·':'online ·','Готово, загружаю…':'Done, uploading…',
+    'Загружено:':'Uploaded:','Добавлено треков:':'Tracks added:','Скачивание:':'Downloading:',
+    'Гостевая библиотека':'Guest library','в библиотеке':'in the library','Свой':'Own',
+    'в':'in','библиотеке':'the library',
+    'Слушай свои треки, тексты и обложки. Всё, что добавлено в приложении, сразу появляется здесь.':'Listen to your tracks, lyrics and covers. Everything added in the app appears here.',
+    '← К обычному входу':'← Back to sign in','← К входу':'← Back to sign in',
+    'К библиотеке':'To library','браузеры блокируют (ERR_UNSAFE_PORT) — всегда используй':'browsers block (ERR_UNSAFE_PORT) — always use',
+    'гостевой режим ключи не выдаёт.':'guest mode does not issue keys.',
+    'Окно авторизации открыто…':'Sign in window is open…','Сначала войди в аккаунт':'Sign in first'
   };
+
+  let i18nCache = {};
+  try { i18nCache = JSON.parse(localStorage.getItem(LS_I18N) || '{}') || {}; } catch { }
+  i18nCache.en = Object.assign({}, i18nCache.en || {}, BUILTIN_EN);
+  let lang = 'ru';
+  const originalText = new WeakMap();
+  const originalAttr = new WeakMap();
+  const CYRILLIC = /[\u0400-\u04FF]/;
+  const CHUNK = /[А-Яа-яЁё]+(?:[ \t]+[А-Яа-яЁё]+)*/g;
+  const SKIP_TEXT = '#lyricsBox,.lyrline,.lyrplain,.kword,#npTitle,#npArtist,#barTitle,#barArtist,#sideRecent,#fileList,.codebox-value';
+  const DEFAULT_TEXTS = new Set(['Ничего не играет', 'Выбери трек']);
+  const ATTRS = ['placeholder', 'title', 'aria-label'];
+
+  function dict() { return i18nCache[lang] || (i18nCache[lang] = {}); }
+
+  function translateString(s) {
+    if (lang === 'ru' || !s || !CYRILLIC.test(s)) return s;
+    const d = dict();
+    const key = s.trim();
+    if (d[key]) {
+      const start = s.indexOf(key);
+      return s.slice(0, start) + d[key] + s.slice(start + key.length);
+    }
+    return s.replace(CHUNK, m => {
+      const k = m.trim();
+      if (d[k]) return m.replace(k, d[k]);
+      return m.replace(/[А-Яа-яЁё]+/g, w => d[w] || w);
+    });
+  }
+
+  function textNodes(root, cb) {
+    if (!root) return;
+    if (root.nodeType === 3) {
+      const parent = root.parentElement;
+      if (!root.nodeValue || !CYRILLIC.test(root.nodeValue) || !parent || parent.closest('script,style')) return;
+      if (parent.closest(SKIP_TEXT)) {
+        const src = originalText.has(root) ? originalText.get(root) : root.nodeValue;
+        if (!DEFAULT_TEXTS.has(src.trim())) return;
+      }
+      cb(root);
+      return;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!n.nodeValue || !CYRILLIC.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+        const p = n.parentElement;
+        if (!p || p.closest('script,style')) return NodeFilter.FILTER_REJECT;
+        if (p.closest(SKIP_TEXT)) {
+          const src = originalText.has(n) ? originalText.get(n) : n.nodeValue;
+          if (!DEFAULT_TEXTS.has(src.trim())) return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    found.forEach(cb);
+  }
+
+  function eachElement(root, cb) {
+    if (!root) return;
+    if (root.nodeType === 1) cb(root);
+    if (root.querySelectorAll) root.querySelectorAll('*').forEach(cb);
+  }
+
+  function applyTo(root) {
+    if (!root) return;
+    textNodes(root, n => {
+      if (!originalText.has(n)) originalText.set(n, n.nodeValue);
+      const src = originalText.get(n);
+      const out = lang === 'ru' ? src : translateString(src);
+      if (out !== n.nodeValue) n.nodeValue = out;
+    });
+    eachElement(root, el => {
+      ATTRS.forEach(name => {
+        if (!el.hasAttribute(name)) return;
+        let origMap = originalAttr.get(el);
+        if (!origMap) { origMap = new Map(); originalAttr.set(el, origMap); }
+        if (!origMap.has(name)) {
+          const v = el.getAttribute(name);
+          if (!v || !CYRILLIC.test(v)) return;
+          origMap.set(name, v);
+        }
+        const src = origMap.get(name);
+        const out = lang === 'ru' ? src : translateString(src);
+        if (out !== el.getAttribute(name)) el.setAttribute(name, out);
+      });
+    });
+    if (root === document.body || root === document.documentElement)
+      document.title = lang === 'ru' ? TITLE_RU : translateString(TITLE_RU);
+  }
+
+  function missingKeys(root) {
+    const out = new Set();
+    const d = dict();
+    textNodes(root, n => {
+      const src = originalText.has(n) ? originalText.get(n) : n.nodeValue;
+      if (d[src]) return;
+      out.add(src);
+      CHUNK.lastIndex = 0;
+      let m;
+      while ((m = CHUNK.exec(src))) if (!d[m[0]]) out.add(m[0]);
+    });
+    eachElement(root, el => {
+      ATTRS.forEach(name => {
+        const origMap = originalAttr.get(el);
+        const src = origMap && origMap.has(name) ? origMap.get(name) : el.getAttribute(name);
+        if (!src || !CYRILLIC.test(src) || d[src]) return;
+        out.add(src);
+        CHUNK.lastIndex = 0;
+        let m;
+        while ((m = CHUNK.exec(src))) if (!d[m[0]]) out.add(m[0]);
+      });
+    });
+    if (!d[TITLE_RU]) out.add(TITLE_RU);
+    return Array.from(out).filter(s => s && s.length < 200);
+  }
+
+  let pendingKeys = new Set(), fetchTimer = null, fetching = false;
+  async function flushTranslations() {
+    if (fetching || lang === 'ru' || !pendingKeys.size) return;
+    const keys = Array.from(pendingKeys).slice(0, 120);
+    keys.forEach(k => pendingKeys.delete(k));
+    fetching = true;
+    try {
+      const r = await fetch('/api/translate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang, texts: keys })
+      });
+      const data = await r.json();
+      if (data && data.map) {
+        Object.assign(dict(), data.map);
+        try { localStorage.setItem(LS_I18N, JSON.stringify(i18nCache)); } catch { }
+        applyTo(document.body);
+      }
+    } catch { }
+    fetching = false;
+    if (pendingKeys.size) { clearTimeout(fetchTimer); fetchTimer = setTimeout(flushTranslations, 300); }
+  }
+  function scheduleTranslations(root) {
+    if (lang === 'ru' || !root) return;
+    missingKeys(root).forEach(k => pendingKeys.add(k));
+    clearTimeout(fetchTimer);
+    fetchTimer = setTimeout(flushTranslations, 350);
+  }
+
+  function isTranslatedNow(n) {
+    const src = originalText.get(n);
+    return src !== undefined && translateString(src) === n.nodeValue;
+  }
+  function onDomChange(mutations) {
+    for (const m of mutations) {
+      if (m.type === 'childList') {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType === 3 || n.nodeType === 1) { applyTo(n); scheduleTranslations(n); }
+        });
+      } else if (m.type === 'characterData') {
+        const n = m.target;
+        if (n.nodeType === 3) {
+          const src = originalText.get(n);
+          const expected = src === undefined ? null : (lang === 'ru' ? src : translateString(src));
+          if (src === undefined || n.nodeValue !== expected) {
+            // Приложение само поменяло текст — считаем его новым оригиналом.
+            originalText.set(n, n.nodeValue);
+            applyTo(n);
+            scheduleTranslations(n.parentElement || document.body);
+          }
+        }
+      }
+    }
+  }
+
+  function applyLang(code) {
+    lang = LANG_CODES.has(code) ? code : 'en';
+    applyTo(document.body);
+    scheduleTranslations(document.body);
+  }
   function initLang() {
     const sel = $('langSelect');
     if (!sel) return;
     LANGS.forEach(([code, name]) => { const o = document.createElement('option'); o.value = code; o.textContent = name; sel.append(o); });
     const sys = (navigator.language || 'ru').slice(0, 2).toLowerCase();
     const saved = localStorage.getItem(LS_LANG) || (LANGS.some(l => l[0] === sys) ? sys : 'ru');
-    sel.value = saved;
-    applyLang(saved);
-    sel.addEventListener('change', () => { localStorage.setItem(LS_LANG, sel.value); applyLang(sel.value); });
-  }
-  function applyLang(code) {
-    const dict = DICT[code] || DICT.en;
-    if (code === 'ru') return;
-    document.querySelectorAll('button,a,label,h1,h2,option,input[placeholder]').forEach(el => {
-      const key = (el.textContent || '').trim();
-      if (dict[key]) el.textContent = dict[key];
-      if (el.getAttribute && el.getAttribute('placeholder') && dict[el.getAttribute('placeholder')])
-        el.setAttribute('placeholder', dict[el.getAttribute('placeholder')]);
+    lang = LANG_CODES.has(saved) ? saved : 'ru';
+    sel.value = lang;
+    applyTo(document.body);
+    new MutationObserver(onDomChange).observe(document.body, { childList: true, subtree: true, characterData: true });
+    sel.addEventListener('change', () => {
+      localStorage.setItem(LS_LANG, sel.value);
+      applyLang(sel.value);
     });
+    scheduleTranslations(document.body);
   }
 
   const state = {
@@ -1937,6 +2197,7 @@
         toast('Время гостя вышло — войди, чтобы слушать дальше');
         return;
       }
+      const s = Math.max(0, Math.floor(left / 1000));
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
       setStatus('гость ' + (h > 0 ? h + ':' + String(m).padStart(2, '0') : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')), 'warn');
     }, 1000);

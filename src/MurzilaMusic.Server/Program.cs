@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -456,6 +457,91 @@ app.MapGet("/api/servers", (HttpContext context) => Results.Json(new
 }));
 
 app.MapGet("/api/health", () => Results.Json(new { status = "ok", service = "Murzila-Music", version = "3.6.0" }));
+
+// Бесплатный перевод интерфейса на 50 языков: без ключей, с кэшем в памяти.
+// Плеер запрашивает только те строки, которых ещё нет в его локальном словаре.
+var uiLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "ru","en","uk","be","kk","uz","ky","az","hy","ka","tr","pl","de","fr","es",
+    "it","pt","nl","sv","fi","no","da","cs","sk","hu","ro","bg","sr","hr","sl",
+    "el","he","ar","fa","hi","bn","th","vi","id","ms","fil","ja","ko","zh","ta",
+    "te","ur","sw","af","et"
+};
+var uiTranslateCache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+var uiTranslateClient = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+var uiTranslateThrottle = new SemaphoreSlim(6);
+
+async Task<string?> TranslateUiText(string text, string lang)
+{
+    string cacheKey = lang + "|" + text;
+    if (uiTranslateCache.TryGetValue(cacheKey, out string? cached)) return cached;
+    string? result = null;
+    await uiTranslateThrottle.WaitAsync();
+    try
+    {
+        try
+        {
+            string url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl="
+                + Uri.EscapeDataString(lang) + "&dt=t&q=" + Uri.EscapeDataString(text);
+            string json = await uiTranslateClient.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(json);
+            string? translated = doc.RootElement[0][0][0].GetString();
+            if (!string.IsNullOrWhiteSpace(translated) && !translated.Equals(text, StringComparison.OrdinalIgnoreCase))
+                result = translated;
+        }
+        catch { }
+        if (result is null)
+        {
+            try
+            {
+                string url = "https://api.mymemory.translated.net/get?q=" + Uri.EscapeDataString(text)
+                    + "&langpair=" + Uri.EscapeDataString("ru|" + lang);
+                string json = await uiTranslateClient.GetStringAsync(url);
+                using var doc = JsonDocument.Parse(json);
+                string? translated = doc.RootElement.GetProperty("responseData")
+                    .GetProperty("translatedText").GetString();
+                if (!string.IsNullOrWhiteSpace(translated)
+                    && !translated.Contains("MYMEMORY WARNING", StringComparison.OrdinalIgnoreCase)
+                    && !translated.Equals(text, StringComparison.OrdinalIgnoreCase))
+                    result = translated;
+            }
+            catch { }
+        }
+    }
+    finally { uiTranslateThrottle.Release(); }
+    if (result is not null) uiTranslateCache[cacheKey] = result;
+    return result;
+}
+
+app.MapPost("/api/translate", async (HttpContext context) =>
+{
+    string lang;
+    List<string> texts;
+    try
+    {
+        using var doc = await JsonDocument.ParseAsync(context.Request.Body);
+        lang = doc.RootElement.GetProperty("lang").GetString() ?? "en";
+        texts = doc.RootElement.GetProperty("texts").EnumerateArray()
+            .Select(x => x.GetString() ?? "")
+            .Where(x => x.Length > 0 && x.Length < 200 && x.Any(c => c >= '\u0400' && c <= '\u04FF'))
+            .Distinct(StringComparer.Ordinal)
+            .Take(80)
+            .ToList();
+    }
+    catch { return Results.BadRequest(new { error = "invalid request" }); }
+
+    var map = new Dictionary<string, string>(StringComparer.Ordinal);
+    if (!uiLanguages.Contains(lang) || string.Equals(lang, "ru", StringComparison.OrdinalIgnoreCase))
+        return Results.Json(new { map });
+
+    var tasks = texts.Select(async text =>
+    {
+        string? translated = await TranslateUiText(text, lang);
+        if (translated is not null) map[text] = translated;
+    });
+    await Task.WhenAll(tasks);
+    return Results.Json(new { map });
+});
 
 app.MapPost("/api/auth/register", async (RegisterRequest request, Db database, HttpContext http) =>
 {
