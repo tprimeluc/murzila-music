@@ -88,6 +88,12 @@
   .step div strong{color:var(--text);display:block;font-size:14px;margin-bottom:3px}
   .foot{margin-top:80px;padding-top:26px;border-top:1px solid var(--line);display:flex;gap:20px;flex-wrap:wrap;color:var(--muted2);font-size:12px}
   .foot a:hover{color:var(--accent2)}
+  .compat{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  .compat th{text-align:left;color:var(--muted2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:0 12px 10px;border-bottom:1px solid var(--line)}
+  .compat td{padding:12px;border-bottom:1px solid rgba(36,45,61,.7);color:var(--muted);vertical-align:top;line-height:1.55}
+  .compat td:first-child{color:var(--text);font-weight:700;white-space:nowrap}
+  .compat tr:last-child td{border-bottom:none}
+  .warnbox{margin-top:18px;padding:14px 18px;border:1px solid rgba(255,179,71,.28);background:rgba(255,179,71,.07);border-radius:14px;color:#ffd39b;font-size:12.5px;line-height:1.6}
   @media(max-width:880px){.hero{grid-template-columns:1fr;padding:34px 26px}h1{font-size:38px}.mock{display:none}.wrap{padding-top:38px}}
 </style>
 </head>
@@ -145,6 +151,37 @@
       <div class="step"><b>2</b><div><strong>Добавь музыку</strong>Кнопка «Добавить треки» — файлы сразу появятся в библиотеке.</div></div>
       <div class="step"><b>3</b><div><strong>Открой веб-плеер</strong>Синхронизация сама загрузит треки на сервер — слушай из любого браузера.</div></div>
     </div>
+  </section>
+
+  <section class="section">
+    <h2>Поддержка браузеров</h2>
+    <p class="sub">Веб-плеер работает в браузерах с Web Audio API и воспроизведением HTTP Range.</p>
+    <table class="compat">
+      <thead><tr><th>Браузер</th><th>Минимальная версия</th><th>Подходящая версия Windows</th></tr></thead>
+      <tbody>
+        <tr><td>Firefox</td><td>Firefox 115 ESR и новее</td><td>Windows 7 / 8.1 (115 ESR) или Windows 10 / 11 (актуальные версии)</td></tr>
+        <tr><td>Google Chrome</td><td>Chrome 109 (минимум для открытия), лучше Chrome 120+</td><td>Windows 7 / 8.1 (Chrome 109) или Windows 10 / 11 (актуальные)</td></tr>
+        <tr><td>Яндекс Браузер</td><td>Версия 24.10.4 и новее</td><td>Windows 7 / 8.1 (24.10.4) или Windows 10 / 11</td></tr>
+        <tr><td>Internet Explorer</td><td>Не поддерживается (даже IE 11)</td><td>Не откроется ни на одной версии Windows</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Что требует каждый источник музыки</h2>
+    <p class="sub">Murzila Music работает только со своими файлами. Никаких чужих каталогов.</p>
+    <table class="compat">
+      <thead><tr><th>Источник</th><th>Что нужно</th><th>Где доступно</th></tr></thead>
+      <tbody>
+        <tr><td>Локальные файлы</td><td>Аудио на устройстве: MP3, WAV, FLAC, M4A, AAC, OGG, WMA. Интернет не нужен.</td><td>Приложение</td></tr>
+        <tr><td>Своё облако</td><td>Аккаунт Murzila Music, вход по почте/GitHub и интернет. До 5000 своих треков.</td><td>Веб + приложение</td></tr>
+        <tr><td>Чужие треки</td><td>Артист сам включает «Разрешить другим слушать мой трек»; слушатель должен войти в аккаунт.</td><td>Веб + приложение</td></tr>
+        <tr><td>Караоке и тексты</td><td>Интернет для поиска в lrclib, Genius (нужен GENIUS_ACCESS_TOKEN) и lyrics.ovh. Свои .lrc работают без интернета.</td><td>Веб + приложение</td></tr>
+        <tr><td>Ссылки на Spotify / YouTube / Яндекс</td><td>Только поисковая ссылка, без аудио. Murzila Music не воспроизводит чужие треки.</td><td>Команда /link бота</td></tr>
+        <tr><td>Discord-бот</td><td>Murzila API-токен, отдельный ботовый ключ и ffmpeg для голосового стрима.</td><td>Discord</td></tr>
+      </tbody>
+    </table>
+    <div class="warnbox">Internet Explorer не поддерживается — используй Firefox 115 ESR, Chrome 120+ или Яндекс Браузер 24.10.4+.</div>
   </section>
 
   <footer class="foot">

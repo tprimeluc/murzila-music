@@ -519,7 +519,6 @@
       <button class="submit" id="authSubmit">Войти</button>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost" id="authCodeLink" type="button">Войти по коду из письма</button>
-        <button class="btn ghost" id="authGoogle" type="button">Войти через Google</button>
         <button class="btn ghost" id="authGithub" type="button">Войти через GitHub</button>
       </div>
     </div>
@@ -1631,7 +1630,6 @@
     }, 1200);
     setTimeout(() => clearInterval(timer), 5 * 60 * 1000);
   }
-  $('authGoogle').addEventListener('click', () => oauthLogin('google'));
   $('authGithub').addEventListener('click', () => oauthLogin('github'));
 
   async function onAuthSuccess(data) {
