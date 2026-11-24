@@ -41,7 +41,10 @@ public partial class WebPlayerWindow : Window
 
         try
         {
-            await Web.EnsureCoreWebView2Async();
+            string userData = Path.Combine(AppPaths.Root, "WebView2");
+            Directory.CreateDirectory(userData);
+            var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);
+            await Web.EnsureCoreWebView2Async(env);
             Web.CoreWebView2.Navigate(_webUrl);
             Web.CoreWebView2.NavigationCompleted += (_, _) =>
                 TbWebStatus.Text = "Плеер загружен: " + _webUrl
@@ -81,7 +84,6 @@ public partial class WebPlayerWindow : Window
 
     private async void BtnSync_Click(object sender, RoutedEventArgs e)
     {
-        BtnSync.IsEnabled = false;
         TbWebStatus.Text = "Синхронизирую свои треки…";
         try
         {
@@ -91,7 +93,6 @@ public partial class WebPlayerWindow : Window
             TbWebStatus.Text = result.Message;
         }
         catch (Exception ex) { TbWebStatus.Text = "Синхронизация не удалась: " + ex.Message; }
-        finally { BtnSync.IsEnabled = true; }
     }
 
     private void BtnFolder_Click(object sender, RoutedEventArgs e)
