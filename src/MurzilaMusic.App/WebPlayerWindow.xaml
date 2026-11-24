@@ -26,7 +26,7 @@
             <wv2:WebView2 x:Name="Web" DefaultBackgroundColor="#07090D"/>
         </Grid>
 
-        <Border Grid.Row="2" Padding="10,7" Background="{DynamicResource PanelBrush}"
+        <Border Grid.Row="2" Visibility="Collapsed" Padding="10,7" Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource BorderSoftBrush}" BorderThickness="0,1,0,0">
             <TextBlock x:Name="TbWebStatus" Text="Подключение…" FontSize="11"
                        Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis"/>

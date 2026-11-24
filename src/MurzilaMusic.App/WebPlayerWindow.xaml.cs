@@ -39,8 +39,13 @@ public partial class WebPlayerWindow : Window
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);
             await Web.EnsureCoreWebView2Async(env);
             Web.CoreWebView2.Navigate(_webUrl);
-            Web.CoreWebView2.NavigationCompleted += (_, _) =>
-                TbWebStatus.Text = "Плеер загружен: " + _webUrl + "  ·  Desktop-функции — правый клик";
+            Web.CoreWebView2.NavigationCompleted += async (_, _) =>
+            {
+                // Плеер внутри приложения: убираем признаки сайта, оставляем ту же логику.
+                await Web.CoreWebView2.ExecuteScriptAsync(
+                    "document.documentElement.classList.add('desktop-embed');");
+                TbWebStatus.Text = "Готово";
+            };
         }
         catch (Exception ex)
         {
