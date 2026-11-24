@@ -7,7 +7,7 @@ namespace MurzilaBrowser.App.Scheme;
 
 /// <summary>
 /// Внутренние страницы браузера: murzila://home, murzila://newtab,
-/// murzila://music, murzila://error и ресурсы murzila://res/...
+/// murzila://error и ресурсы murzila://res/...
 /// Никаких внешних серверов и WebView — страницы отдаёт сам CEF.
 /// </summary>
 public sealed class MurzilaSchemeHandlerFactory : ISchemeHandlerFactory
@@ -16,7 +16,6 @@ public sealed class MurzilaSchemeHandlerFactory : ISchemeHandlerFactory
     {
         ["home"] = ("home.html", "text/html"),
         ["newtab"] = ("newtab.html", "text/html"),
-        ["music"] = ("music.html", "text/html"),
         ["error"] = ("error.html", "text/html")
     };
 

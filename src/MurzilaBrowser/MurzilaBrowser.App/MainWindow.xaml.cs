@@ -42,7 +42,6 @@ public partial class MainWindow : Window
         // Обычный браузер: первая вкладка — новая, потом главная и музыка.
         AddTab("murzila://newtab", "Новая вкладка", builtIn: true);
         AddTab(_prefs.HomeUrl, "Главная", builtIn: true);
-        AddTab("murzila://music", "Музыка", builtIn: true);
         if (!string.IsNullOrWhiteSpace(startupUrl))
             AddTab(startupUrl, TitleFromUrl(startupUrl));
 
@@ -54,7 +53,9 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        StatusText.Text = "готово · движок Blink/V8 (CEF), Python не используется";
+        StatusText.Text = "готово";
+        if (_prefs.FullscreenOnStart) WindowState = WindowState.Maximized;
+        ApplyZoomToAll(_prefs.DefaultZoomPercent);
         SidecarText.Text = "обновление: проверка…";
         var info = await _updates.CheckAsync();
         SidecarText.Text = info != null && info.IsNewer
@@ -100,7 +101,7 @@ public partial class MainWindow : Window
         {
             if (Current() != tab) return;
             LoadProgress.Value = args.IsLoading ? 50 : 100;
-            StatusText.Text = args.IsLoading ? "загрузка…" : "готово · Blink/V8, без Python";
+            StatusText.Text = args.IsLoading ? "загрузка…" : "готово";
             if (!args.IsLoading && tab.Title == "Загрузка…")
             {
                 tab.Title = TitleFromUrl(tab.Browser.Address);
@@ -158,7 +159,7 @@ public partial class MainWindow : Window
         PageTabs.SelectedIndex = index;
         var tab = _tabs[index];
         AddressBox.Text = tab.Browser.Address;
-        StatusText.Text = "готово · Blink/V8, без Python";
+        StatusText.Text = "готово";
         LoadProgress.Value = 100;
         _syncing = false;
     }
@@ -176,15 +177,14 @@ public partial class MainWindow : Window
         AddressBox.Text = target;
     }
 
-    private static string TitleFromUrl(string url)
+    private string TitleFromUrl(string url)
     {
         if (url.Contains("murzila://home", StringComparison.OrdinalIgnoreCase)) return "Главная";
-        if (url.Contains("murzila://music", StringComparison.OrdinalIgnoreCase)) return "Музыка";
         if (url.Contains("murzila://newtab", StringComparison.OrdinalIgnoreCase)) return "Новая вкладка";
         try { return new Uri(NormalizeUrl(url)).Host; } catch { return "Загрузка…"; }
     }
 
-    private static string NormalizeUrl(string input)
+    private string NormalizeUrl(string input)
     {
         string value = input.Trim();
         if (value.Length == 0) return "murzila://newtab";
@@ -193,7 +193,7 @@ public partial class MainWindow : Window
         if (value.StartsWith("localhost", StringComparison.OrdinalIgnoreCase) || value.StartsWith("127.0.0.1", StringComparison.Ordinal))
             return "http://" + value;
         if (value.Contains(' ') || !value.Contains('.'))
-            return "https://duckduckgo.com/?q=" + Uri.EscapeDataString(value);
+            return string.Format(_prefs.SearchUrl, Uri.EscapeDataString(value));
         return "http://" + value;
     }
 
@@ -222,6 +222,24 @@ public partial class MainWindow : Window
     {
         var window = new FeaturesWindow(_data, _updates, _voice) { Owner = this };
         window.ShowDialog();
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new SettingsWindow(_prefs) { Owner = this };
+        if (window.ShowDialog() == true)
+        {
+            ApplyZoomToAll(_prefs.DefaultZoomPercent);
+            StatusText.Text = "настройки сохранены";
+        }
+    }
+
+    private static double PercentToZoom(int percent) => Math.Log(Math.Max(0.25, percent / 100.0), 1.2);
+
+    private void ApplyZoomToAll(int percent)
+    {
+        double zoom = PercentToZoom(percent);
+        foreach (var tab in _tabs) tab.Browser.ZoomLevel = zoom;
     }
 
     private void AccountMurzila_Click(object sender, RoutedEventArgs e) => Navigate(_account.GetAuthUrl("Murzila"));
@@ -288,6 +306,23 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.W) { RemoveTabAt(Tabs.SelectedIndex); e.Handled = true; }
         else if (ctrl && e.Key == Key.L) { AddressBox.Focus(); AddressBox.SelectAll(); e.Handled = true; }
         else if (e.Key == Key.F5) { Current()?.Browser.Reload(); e.Handled = true; }
+        else if (e.Key == Key.F11)
+        {
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            e.Handled = true;
+        }
+        else if (ctrl && (e.Key == Key.OemPlus || e.Key == Key.Add))
+        {
+            _prefs.DefaultZoomPercent = Math.Min(200, _prefs.DefaultZoomPercent + 10);
+            ApplyZoomToAll(_prefs.DefaultZoomPercent);
+            e.Handled = true;
+        }
+        else if (ctrl && (e.Key == Key.OemMinus || e.Key == Key.Subtract))
+        {
+            _prefs.DefaultZoomPercent = Math.Max(50, _prefs.DefaultZoomPercent - 10);
+            ApplyZoomToAll(_prefs.DefaultZoomPercent);
+            e.Handled = true;
+        }
         else if (alt && e.Key == Key.Left) { Back_Click(sender, e); e.Handled = true; }
         else if (alt && e.Key == Key.Right) { Forward_Click(sender, e); e.Handled = true; }
     }

@@ -41,21 +41,21 @@ public static class FeatureCatalog
         new BrowserFeature("Уведомление о версии", "В окне возможностей"),
         new BrowserFeature("Статус сети", "Строка состояния"),
         new BrowserFeature("Индикатор загрузки", "Progress bar"),
-        new BrowserFeature("Монохромная тема", "Обычный браузер, без music-стиля"),
-        new BrowserFeature("Светлая тема", "Переключаемая"),
+        new BrowserFeature("Монохромная тема", "Нейтральная тема браузера"),
+        new BrowserFeature("Настройки поиска", "6 поисковых систем в настройках"),
         new BrowserFeature("Свой курсор", "Стандартный системный"),
         new BrowserFeature("Свои иконки", "SVG-пути, не Unicode"),
         new BrowserFeature("Блокировщик рекламы", "Базовый список доменов", false),
         new BrowserFeature("Менеджер расширений", "Каркас, включение/выключение", false),
         new BrowserFeature("Менеджер загрузок", "Список файлов", false),
-        new BrowserFeature("Полный экран", "F11", false),
-        new BrowserFeature("Масштаб", "Ctrl +/-", false),
+        new BrowserFeature("Полный экран", "F11"),
+        new BrowserFeature("Масштаб", "Ctrl +/-"),
         new BrowserFeature("Скриншот вкладки", "PNG в Downloads", false),
         new BrowserFeature("Инкогнито", "Отдельный контекст", false),
-        new BrowserFeature("Менеджер паролей", "Локальный шифрованный store", false),
+        new BrowserFeature("Аппаратное ускорение", "Включается в настройках"),
         new BrowserFeature("Автозаполнение", "Формы", false),
         new BrowserFeature("Медиа-клавиши", "Play/Pause", false),
         new BrowserFeature("Жесты мышью", "Свайпы назад/вперёд", false),
-        new BrowserFeature("Синхронизация с облаком", "Murzila Cloud", false)
+        new BrowserFeature("Экономичный режим", "Меньше лагов, 4K легче")
     };
 }

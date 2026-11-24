@@ -34,6 +34,7 @@ public partial class App : Application
         if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
             StartupUrl = NormalizeUrl(args[1]);
 
+        var prefs = BrowserPrefs.Load();
         var settings = new CefSettings
         {
             CachePath = BrowserPrefs.ProfilePath,
@@ -42,6 +43,7 @@ public partial class App : Application
             AcceptLanguageList = "ru,en;q=0.9",
             LogFile = Path.Combine(BrowserPrefs.ProfilePath, "cef.log")
         };
+        if (!prefs.HardwareAcceleration || prefs.LowEndMode) settings.DisableGpuAcceleration();
         settings.RegisterScheme(new CefCustomScheme
         {
             SchemeName = "murzila",
