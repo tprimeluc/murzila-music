@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "generatedBy": "node",
+  "pages": [
+    {
+      "file": "error.html",
+      "url": "murzila://error",
+      "mime": "text/html",
+      "bytes": 1106,
+      "sha256": "5a078bd237250e201e8503773a8c4d6b81a6e22e1149eb4d966af821383381ef"
+    },
+    {
+      "file": "home.html",
+      "url": "murzila://home",
+      "mime": "text/html",
+      "bytes": 2666,
+      "sha256": "c4d161edd8817f6d4964a45e32d4de9d3986239c1b40642175b50dd7ce596a79"
+    },
+    {
+      "file": "music.html",
+      "url": "murzila://music",
+      "mime": "text/html",
+      "bytes": 686,
+      "sha256": "9d2b70859d6e068326b67f636f43a8d4527fa2049597c150c5fbc3b94fdda38c"
+    },
+    {
+      "file": "newtab.html",
+      "url": "murzila://newtab",
+      "mime": "text/html",
+      "bytes": 1714,
+      "sha256": "59a51d234c251667ad97ab48760081b093e98115a157238e11e5df87e7aacee1"
+    },
+    {
+      "file": "style.css",
+      "url": "murzila://res/style.css",
+      "mime": "text/css",
+      "bytes": 2524,
+      "sha256": "f8333fcd12b58a7266b8eccbaf25888c3a6d8f6c2db6923da915c324ce923d54"
+    }
+  ]
+}

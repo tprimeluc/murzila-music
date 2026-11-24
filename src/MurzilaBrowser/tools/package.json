@@ -1,0 +1,9 @@
+{
+  "name": "murzila-browser-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js tooling for Murzila Browser: builds the internal-pages manifest.",
+  "scripts": {
+    "build": "node build-assets.js"
+  }
+}

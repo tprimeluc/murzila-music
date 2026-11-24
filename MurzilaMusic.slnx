@@ -3,6 +3,9 @@
     <Project Path="src/MurzilaMusic.App/MurzilaMusic.App.csproj" />
     <Project Path="src/MurzilaMusic.Server/MurzilaMusic.Server.csproj" />
   </Folder>
+  <Folder Name="/src/MurzilaBrowser/">
+    <Project Path="src/MurzilaBrowser/MurzilaBrowser.App/MurzilaBrowser.App.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MurzilaMusic.Tests/MurzilaMusic.Tests.csproj" />
   </Folder>
