@@ -82,6 +82,7 @@
   .btn.primary:hover{background:var(--accent2)}
   .btn.small{height:28px;font-size:11px;padding:0 10px}
   .who{font-size:11.5px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lang-select{height:30px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:11px;padding:0 6px;outline:none}
 
   /* main */
   .main{grid-column:2;grid-row:2;overflow-y:auto;padding:22px 24px 40px;scrollbar-width:thin;scrollbar-color:#313a4d transparent}
@@ -322,6 +323,7 @@
       <input id="search" placeholder="Поиск по трекам" autocomplete="off">
     </div>
     <div class="grow"></div>
+    <select id="langSelect" class="lang-select" title="Язык / Language"></select>
     <div class="chip" id="status"><span class="dot"></span><span id="statusText">подключение…</span></div>
     <span id="who" class="who"></span>
     <button class="btn" id="tfaBtn" title="Двухфакторная защита">2FA</button>
@@ -338,7 +340,7 @@
       <div class="hero">
         <div class="eyebrow">ТВОЯ БИБЛИОТЕКА · ТОЛЬКО СВОЯ МУЗЫКА</div>
         <h1 id="heroTitle">Моя музыка</h1>
-        <p id="heroText">Слушай свои треки, тексты и обложки. Гостевой доступ — 6 минут без входа, до 5000 треков.</p>
+        <p id="heroText">Слушай свои треки, тексты и обложки. Гостевой доступ — 5 часов, до 5000 треков. Треки длиннее 6 минут требуют входа и 5 ₽.</p>
         <div class="row">
           <button class="btn primary" id="heroPlay">Играть всё</button>
           <button class="btn" id="heroUpload">Добавить треки</button>
@@ -601,6 +603,47 @@
   const LS_FAV = 'murzila_fav_v1';
   const LS_EQ = 'murzila_eq_v1';
   const LS_GUEST = 'murzila_guest_until_v1';
+  const LS_LANG = 'murzila_lang_v1';
+
+  // 50 языков: язык системы по умолчанию, ручной выбор в шапке.
+  const LANGS = [
+    ['ru','Русский'],['en','English'],['uk','Українська'],['be','Беларуская'],['kk','Қазақша'],
+    ['uz','Oʻzbekcha'],['ky','Кыргызча'],['az','Azərbaycanca'],['hy','Հայերեն'],['ka','ქართული'],
+    ['tr','Türkçe'],['pl','Polski'],['de','Deutsch'],['fr','Français'],['es','Español'],
+    ['it','Italiano'],['pt','Português'],['nl','Nederlands'],['sv','Svenska'],['fi','Suomi'],
+    ['no','Norsk'],['da','Dansk'],['cs','Čeština'],['sk','Slovenčina'],['hu','Magyar'],
+    ['ro','Română'],['bg','Български'],['sr','Српски'],['hr','Hrvatski'],['sl','Slovenščina'],
+    ['el','Ελληνικά'],['he','עברית'],['ar','العربية'],['fa','فارسی'],['hi','हिन्दी'],
+    ['bn','বাংলা'],['th','ไทย'],['vi','Tiếng Việt'],['id','Bahasa Indonesia'],['ms','Bahasa Melayu'],
+    ['fil','Filipino'],['ja','日本語'],['ko','한국어'],['zh','中文'],['ta','தமிழ்'],
+    ['te','తెలుగు'],['ur','اردو'],['sw','Kiswahili'],['af','Afrikaans'],['et','Eesti']
+  ];
+  const DICT = {
+    en: {'Вход':'Sign in','Регистрация':'Register','Сброс':'Reset','Войти':'Sign in','Добавить':'Add','Выйти':'Sign out','Моя музыка':'My music','Любимое':'Favorites','Очередь':'Queue','Чужие треки':'Other artists','Караоке':'Karaoke','Эквалайзер':'Equalizer','Скачать треки':'Download tracks','Статистика':'Stats','Серверы и API':'Servers and API','Поиск по трекам':'Search tracks','Играть всё':'Play all','Добавить треки':'Add tracks','Пока пусто':'Nothing here yet'},
+    de: {'Вход':'Anmelden','Регистрация':'Registrieren','Моя музыка':'Meine Musik','Караоке':'Karaoke','Войти':'Anmelden'},
+    fr: {'Вход':'Connexion','Регистрация':'Inscription','Моя музыка':'Ma musique','Караоке':'Karaoké','Войти':'Connexion'},
+    es: {'Вход':'Iniciar sesión','Регистрация':'Registro','Моя музыка':'Mi música','Караоке':'Karaoke','Войти':'Entrar'}
+  };
+  function initLang() {
+    const sel = $('langSelect');
+    if (!sel) return;
+    LANGS.forEach(([code, name]) => { const o = document.createElement('option'); o.value = code; o.textContent = name; sel.append(o); });
+    const sys = (navigator.language || 'ru').slice(0, 2).toLowerCase();
+    const saved = localStorage.getItem(LS_LANG) || (LANGS.some(l => l[0] === sys) ? sys : 'ru');
+    sel.value = saved;
+    applyLang(saved);
+    sel.addEventListener('change', () => { localStorage.setItem(LS_LANG, sel.value); applyLang(sel.value); });
+  }
+  function applyLang(code) {
+    const dict = DICT[code] || DICT.en;
+    if (code === 'ru') return;
+    document.querySelectorAll('button,a,label,h1,h2,option,input[placeholder]').forEach(el => {
+      const key = (el.textContent || '').trim();
+      if (dict[key]) el.textContent = dict[key];
+      if (el.getAttribute && el.getAttribute('placeholder') && dict[el.getAttribute('placeholder')])
+        el.setAttribute('placeholder', dict[el.getAttribute('placeholder')]);
+    });
+  }
 
   const state = {
     user: null, guest: false, guestUntil: 0, token: null,
@@ -827,7 +870,7 @@
     $('heroBadge').textContent = state.tracks.length + ' ' + word(state.tracks.length) + ' в библиотеке';
     $('heroTitle').textContent = state.guest ? 'Гостевая библиотека' : 'Моя музыка';
     $('heroText').textContent = state.guest
-      ? 'Гостевой доступ — 6 минут без входа, до 5000 треков. Потом войди, чтобы слушать дальше.'
+      ? 'Гостевой доступ — 5 часов, до 5000 треков. Треки длиннее 6 минут требуют входа и 5 ₽.'
       : 'Слушай свои треки, тексты и обложки. Всё, что добавлено в приложении, сразу появляется здесь.';
     $('empty').classList.toggle('hidden', list.length > 0);
     document.querySelector('#view-tracks .table').classList.toggle('hidden', list.length === 0);
@@ -1036,6 +1079,11 @@
     const list = shared ? state.shared : state.tracks;
     const idx = shared ? list.findIndex(x => x.id === t.id) : list.indexOf(t);
     if (idx < 0) return;
+    if (state.guest && Number(t.duration) > 360) {
+      toast('Трек длиннее 6 минут — войди в аккаунт, стоимость 5 ₽', false);
+      openAuth();
+      return;
+    }
     state.index = shared ? -1 : idx;
     state.currentTrack = t;
     state.lyricsFor = null;
@@ -1886,11 +1934,11 @@
         applyFilter(); renderNow();
         setStatus('время гостя вышло', 'warn');
         openAuth();
-        toast('6 минут гостя закончились — войди, чтобы слушать дальше');
+        toast('Время гостя вышло — войди, чтобы слушать дальше');
         return;
       }
-      const s = Math.ceil(left / 1000);
-      setStatus('гость ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), 'warn');
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      setStatus('гость ' + (h > 0 ? h + ':' + String(m).padStart(2, '0') : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')), 'warn');
     }, 1000);
   }
 
@@ -1912,12 +1960,12 @@
     if (g.ok && g.data && g.data.token) {
       state.guest = true;
       state.token = g.data.token;
-      state.guestUntil = Date.now() + (g.data.minutes || 6) * 60000;
+      state.guestUntil = Date.now() + (g.data.minutes || 300) * 60000;
       localStorage.setItem(LS_GUEST, String(state.guestUntil));
       startGuestTimer();
       $('who').textContent = 'гость';
       await loadLibrary();
-      setStatus('гость 6:00', 'warn');
+      setStatus('гость 5:00:00', 'warn');
       return true;
     }
     return false;
@@ -2058,6 +2106,7 @@
   }
 
   loadEq();
+  initLang();
   startVisualizer();
   renderEqGrid();
   boot();

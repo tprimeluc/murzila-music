@@ -191,6 +191,18 @@ app.MapGet("/api/music/files/{trackId}", async (HttpContext context, Db database
     if (owner.UserId is null)
         return Results.Json(new { error = "Murzila-Music API: нужен токен (Bearer, ?token= или вход на сайте)." }, statusCode: 401);
 
+    // Гость: сессия 5 часов, но треки длиннее 6 минут требуют входа и оплаты 5 ₽.
+    if (await IsGuestTokenAsync(database, ReadToken(context)))
+    {
+        var gm = await cloud.FindAsync(owner.UserId, trackId);
+        if (gm is not null && gm.DurationSeconds > 360)
+            return Results.Json(new
+            {
+                error = "Треки длиннее 6 минут доступны после входа. Стоимость прослушивания — 5 ₽.",
+                paywall = true, price = 5
+            }, statusCode: 402);
+    }
+
     var path = await cloud.FilePathAsync(owner.UserId, trackId, "file");
     if (path is null) return Results.NotFound(new { error = "Murzila-Music API: трек не найден." });
     var contentType = CloudStore.ContentType(path);
@@ -648,7 +660,7 @@ app.MapGet("/api/web/me", async (HttpContext context, Db database) =>
 
 app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
 {
-    // Гостевой доступ: 6 минут и до 5000 треков без входа. Токен живёт 6 минут.
+    // Гостевой доступ: 5 часов и до 5000 треков без входа.
     string email = Environment.GetEnvironmentVariable("MURZILA_OWNER_EMAIL") ?? "tprimeluc@gmail.com";
     UserRow? user = await FindUserByEmailAsync(database, email);
     if (user is null) user = await FindFirstUserAsync(database);
@@ -680,7 +692,7 @@ app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
     }
 
     string token = Db.NewToken();
-    string expires = DateTime.UtcNow.AddMinutes(6).ToString("O", CultureInfo.InvariantCulture);
+    string expires = DateTime.UtcNow.AddHours(5).ToString("O", CultureInfo.InvariantCulture);
     await using (var connection = database.Open())
     await using (var command = connection.CreateCommand())
     {
@@ -691,7 +703,7 @@ app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
         await command.ExecuteNonQueryAsync();
     }
     SignInCookie(context, token);
-    return Results.Ok(new { token, guest = true, expiresAt = expires, maxTracks = 5000, minutes = 6, name = user.Name });
+    return Results.Ok(new { token, guest = true, expiresAt = expires, maxTracks = 5000, minutes = 300, hours = 5, name = user.Name });
 });
 
 app.MapGet("/api/web/session-token", async (HttpContext context, Db database) =>
