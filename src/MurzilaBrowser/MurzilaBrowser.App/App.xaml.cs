@@ -1,11 +1,10 @@
 ﻿using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Threading;
 using CefSharp;
 using CefSharp.Wpf;
-using MurzilaBrowser.App.Services;
 using MurzilaBrowser.App.Scheme;
+using MurzilaBrowser.App.Services;
 
 namespace MurzilaBrowser.App;
 
@@ -13,7 +12,7 @@ public partial class App : Application
 {
     private static Mutex? _singleInstance;
 
-    public static string StartupUrl { get; private set; } = "murzila://home";
+    public static string? StartupUrl { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -37,7 +36,6 @@ public partial class App : Application
 
         var settings = new CefSettings
         {
-            BrowserSubprocessPath = Path.Combine(AppContext.BaseDirectory, "CefSharp.BrowserSubprocess.exe"),
             CachePath = BrowserPrefs.ProfilePath,
             RootCachePath = BrowserPrefs.ProfilePath,
             Locale = "ru",

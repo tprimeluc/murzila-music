@@ -5,12 +5,12 @@
   --line: #232b3a;
   --text: #f5f7fb;
   --muted: #9aa4b7;
-  --accent: #22d36e;
+  --accent: #4f8cff;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: radial-gradient(1000px 700px at 10% -10%, rgba(34,211,110,.12), transparent 58%), var(--bg);
+  background: radial-gradient(1000px 700px at 10% -10%, rgba(79,140,255,.12), transparent 58%), var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
   overflow: hidden;

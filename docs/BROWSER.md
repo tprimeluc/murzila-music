@@ -1,73 +1,47 @@
-# Murzila Browser
+# Murzila Browser v2
 
-Свой браузер Murzila: оболочка на **C# / WPF**, движок **Chromium через CEF (CefSharp)**, локальный помощник на **Python**, сборка внутренних страниц на **Node.js**. WebView2 не используется вообще.
+Обычный браузер: вкладки, адресная строка, поиск, история, закладки. Свой движок — **Chromium/CEF (Blink + V8)**. Не WebView2, не PyWebEngine, **Python полностью убран из браузера**.
 
-## Зачем
+## Что изменилось в v2
 
-- Любые сайты на полноценном движке Chromium (JavaScript, Web Audio, Canvas, Range-стрим — всё работает).
-- Две свои вкладки прямо в коде: **Главная** (`murzila://home`) и **Музыка** (`murzila://music`, веб-плеер Murzila).
-- Свой тёмный интерфейс, свои векторные иконки, вкладки, адресная строка, история, закладки.
+- Обычный внешний вид: нейтральная синяя тема, стартовая страница без music-брендинга.
+- Любой поиск/ввод адреса **всегда открывает новую вкладку** — текущая не перезаписывается.
+- Python-помощник удалён. История, закладки, перевод, обновления и голос — на C#.
+- Кнопка «50» в панели открывает окно со списком из 50 возможностей.
+- Контекстное меню вкладки: перевод страницы, обычный голос, живые голоса, вход через Murzila/Google.
+- Обновления проверяются прямо в приложении через GitHub Releases (нужен интернет).
+- Обход 18+ за 200 ₽ **не делаем** (нет платёжных ключей, механизмы YouTube меняются).
 
 ## Архитектура
 
 ```
 src/MurzilaBrowser/
-├── MurzilaBrowser.App/        C# WPF: окно, вкладки, адресная строка, CEF
-│   ├── MainWindow.xaml        хром браузера (все иконки — SVG-пути, не Unicode)
+├── MurzilaBrowser.App/
+│   ├── MainWindow.xaml(.cs)     хром браузера, вкладки, меню, проверка обновлений
+│   ├── App.xaml.cs              CEF + кастомная схема murzila://
+│   ├── Scheme/                  внутренние страницы
 │   ├── Services/
-│   │   ├── BrowserPrefs.cs    настройки в %APPDATA%\MurzilaBrowser
-│   │   └── PythonBridge.cs    HTTP-клиент к локальному помощнику
-│   ├── Scheme/
-│   │   └── MurzilaSchemeHandlerFactory.cs  внутренние страницы murzila://
-│   └── Resources/             home.html, music.html, newtab.html, error.html, style.css
-├── sidecar/server.py          Python: история, закладки, перевод (stdlib, без pip)
-└── tools/                     Node.js: манифест внутренних страниц
+│   │   ├── BrowserPrefs.cs      настройки
+│   │   ├── LocalDataService.cs  история/закладки (JSON, C#)
+│   │   ├── TranslationService.cs Google + MyMemory + кэш
+│   │   ├── VoiceService.cs      системный TTS + «живые голоса»
+│   │   ├── UpdateService.cs     GitHub Releases
+│   │   ├── AccountService.cs    Murzila / GitHub / Google через сайт
+│   │   └── FeatureCatalog.cs    50 возможностей
+│   ├── Windows/FeaturesWindow   окно возможностей
+│   └── Resources/               murzila://home, newtab, music, error
+└── tools/                       Node.js: манифест внутренних страниц
 ```
 
-Потоки данных:
+Движок: CEF 156 = Chromium с Blink + V8. JavaScript, Web Audio, Canvas и современные сайты работают.
 
-1. C# при старте поднимает CEF с кастомной схемой `murzila://` и открывает вкладки.
-2. C# запускает `python sidecar/server.py 6137` и показывает статус в строке состояния.
-3. История и закладки пишутся в `%APPDATA%\MurzilaBrowser\*.json` через Python.
-4. Node.js скрипт `npm run build` пересобирает `Assets/pages.manifest.json`.
-
-## Сборка и запуск
+## Сборка
 
 ```powershell
-cd D:\Murzila-Music
 dotnet build src/MurzilaBrowser/MurzilaBrowser.App/MurzilaBrowser.App.csproj -c Release
-
-# exe лежит в bin/Release/net10.0-windows/win-x64/
 .\src\MurzilaBrowser\MurzilaBrowser.App\bin\Release\net10.0-windows\win-x64\MurzilaBrowser.exe
-
-# можно сразу открыть адрес
-.\...\MurzilaBrowser.exe http://localhost:6001/player
 ```
 
-Python нужен в `PATH` (проверка: `python --version`). Если его нет, браузер работает, но история/закладки/перевод отключаются.
+## Windows 7
 
-## Управление
-
-| Клавиши | Действие |
-|---|---|
-| Ctrl+T | новая вкладка |
-| Ctrl+W | закрыть вкладку |
-| Ctrl+L | фокус на адресной строке |
-| F5 | обновить |
-| Alt+Лево / Alt+Право | назад / вперёд |
-
-Ввод без схемы: `localhost:6001` → `http://`, `example.com` → `http://`, anything with space → поиск DuckDuckGo.
-
-## Релиз 01.12.2026
-
-- [ ] Собрать Release x64, убрать отладочные логи.
-- [ ] Сделать MSI (как у Murzila Music) и ZIP-архив с портативной версией.
-- [ ] Добавить ярлык на рабочий стол и свою иконку.
-- [ ] Загрузить ассеты в GitHub Release `v3.7.0`.
-- [ ] Проверить запуск на чистой машине без installed Python (браузер должен работать).
-
-## Известные ограничения
-
-- CEF-рантайм занимает ~180 МБ в папке приложения — это нормально для полноценного Chromium.
-- Внутренние страницы `murzila://` отдаются из встроенных ресурсов C#, отдельный веб-сервер для них не нужен.
-- Перевод в Python-помощнике использует публичные API и может быть недоступен без интернета.
+Текущая сборка требует Windows 10/11: .NET 10 и CEF 156 на Win7 не запускаются. Для Win7 нужна отдельная legacy-ветка: .NET Framework 4.8.1 + CefSharp 109 (последний CEF с поддержкой Win7). Тогда часть современных сайтов будет работать хуже. Это отдельный этап после релиза 01.12.

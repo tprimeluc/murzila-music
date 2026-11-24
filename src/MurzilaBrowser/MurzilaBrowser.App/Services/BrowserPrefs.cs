@@ -9,8 +9,9 @@ public sealed class BrowserPrefs
     public string MusicUrl { get; set; } = "http://localhost:6001/player";
     public string SearchUrl { get; set; } = "https://duckduckgo.com/?q={0}";
     public bool StartOnHomePage { get; set; } = true;
-    public bool EnablePythonSidecar { get; set; } = true;
-    public int SidecarPort { get; set; } = 6137;
+    public bool EnableVoiceTranslation { get; set; } = true;
+    public bool EnableLiveVoices { get; set; } = true;
+    public bool EnableInAppUpdates { get; set; } = true;
 
     public static string AppDataPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MurzilaBrowser");
