@@ -167,7 +167,7 @@
                         <TextBlock Text="Murzila-music" FontSize="20" FontWeight="Bold"
                                    Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI Variable Display, Segoe UI"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <TextBlock Text="beta 2.0" FontSize="10" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
+                            <TextBlock Text="3.6" FontSize="10" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
                             <TextBlock x:Name="TbOnlineBadge" Text="  ·  онлайн" FontSize="10" Foreground="{DynamicResource SubtleMutedBrush}"/>
                         </StackPanel>
                     </StackPanel>
