@@ -1245,6 +1245,8 @@ public partial class MainWindow : Window
 
     private void BtnSettings_Click(object sender, RoutedEventArgs e)
     {
+        // Читаем свежий файл: другие окна/процессы могли изменить настройки.
+        SettingsService.Reload();
         var settings = new SettingsWindow(() =>
         {
             ApplyLanguage();

@@ -7,6 +7,9 @@ namespace MurzilaMusic.App;
 
 public partial class App : Application
 {
+    // Только одно приложение: вторая копия перезаписала бы settings.json при выходе.
+    private static readonly Mutex SingleInstance = new(true, @"Global\MurzilaMusic_3_6_Single");
+
     public App()
     {
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -16,6 +19,11 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (!SingleInstance.WaitOne(TimeSpan.Zero, false))
+        {
+            Shutdown();
+            return;
+        }
         base.OnStartup(e);
 
         try

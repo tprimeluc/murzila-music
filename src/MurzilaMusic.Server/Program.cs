@@ -772,7 +772,7 @@ app.MapPost("/api/auth/register/request-code", async (RequestCodeRequest request
     });
 });
 
-app.MapPost("/api/auth/register/verify", async (VerifyCodeRequest request, Db database) =>
+app.MapPost("/api/auth/register/verify", async (VerifyCodeRequest request, Db database, HttpContext http) =>
 {
     string email = (request.Email ?? "").Trim().ToLowerInvariant();
     string code = (request.Code ?? "").Trim();
@@ -837,6 +837,7 @@ app.MapPost("/api/auth/register/verify", async (VerifyCodeRequest request, Db da
         return Results.Conflict(new { error = "Аккаунт с такой почтой уже существует." });
     }
 
+    SignInCookie(http, token);
     return Results.Ok(new AuthResult
     {
         Token = token,
@@ -884,7 +885,7 @@ app.MapPost("/api/auth/login/request-code", async (LoginCodeRequest request, Db 
     });
 });
 
-app.MapPost("/api/auth/login/verify", async (VerifyCodeRequest request, Db database) =>
+app.MapPost("/api/auth/login/verify", async (VerifyCodeRequest request, Db database, HttpContext http) =>
 {
     string email = (request.Email ?? "").Trim().ToLowerInvariant();
     string code = (request.Code ?? "").Trim();
@@ -927,6 +928,7 @@ app.MapPost("/api/auth/login/verify", async (VerifyCodeRequest request, Db datab
         delete.Parameters.AddWithValue("$email", email);
         await delete.ExecuteNonQueryAsync();
     }
+    SignInCookie(http, token);
     return Results.Ok(new AuthResult { Token = token, User = ToUserDto(user) });
 });
 

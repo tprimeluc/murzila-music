@@ -70,13 +70,14 @@
     background:rgba(30,215,96,.12); color:var(--accent-2); border:1px solid rgba(30,215,96,.25); }
   .foot { margin-top:34px; color:var(--muted); font-size:12.5px; text-align:center; }
 </style>
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 </head>
 <body>
 <nav class="nav">
   <div class="brand"><span class="dot"><img src="/icon.png" alt=""></span> Murzila Music API</div>
   <div class="spacer"></div>
   <a class="link" href="/player">Плеер</a>
-  <a class="link" href="/download">Скачать</a>
   <a class="link" href="/">Сайт</a>
   <a class="link" href="/api/health">Health</a>
 </nav>
@@ -211,7 +212,7 @@ curl http://localhost:6001/api/music/cover/ID_ТРЕКА \
     </p>
   </div>
 
-  <div class="foot">Murzila-Music · 3.6 · API отдаёт только файлы твоего аккаунта<br>© 2026 MursikT7 Corporation · Все права защищены.</div>
+  <div class="foot" data-egg>Murzila-Music · 3.6 · API отдаёт только файлы твоего аккаунта<br>© 2026 MursikT7 Corporation · Все права защищены.</div>
 </div>
 
 <script>
