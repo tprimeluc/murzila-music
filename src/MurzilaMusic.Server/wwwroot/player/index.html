@@ -269,7 +269,7 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="logo"><img src="/icon.png" alt="Murzila Music"></div>
-      <div>Murzila Music<small>3.6</small></div>
+      <div>Murzila Music<small>3.9</small></div>
     </div>
     <div class="navgroup">
       <div class="navcap">Библиотека</div>
@@ -288,6 +288,9 @@
       <div class="navcap">Инструменты</div>
       <button class="navitem" data-view="karaoke">
         <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4zm7 9a1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V23h-2v-2.06A9 9 0 0 1 3 12a1 1 0 1 1 2 0 7 7 0 0 0 14 0z"/></svg>Караоке
+      </button>
+      <button class="navitem" data-view="scanner">
+        <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4zm7 9a1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V23h-2v-2.06A9 9 0 0 1 3 12a1 1 0 1 1 2 0 7 7 0 0 0 14 0z"/></svg>Сканер песен
       </button>
       <button class="navitem" data-view="equalizer">
         <svg viewBox="0 0 24 24"><path d="M4 4h2v10H4zm0 12h2v4H4zM11 4h2v4h-2zm0 6h2v10h-2zM18 4h2v13h-2zm0 15h2v1h-2zM2 14h6v2H2zm7-8h6v2H9zm7 9h6v2h-6z"/></svg>Эквалайзер
@@ -382,6 +385,19 @@
           <p>Включи трек с текстом — строки подсвечиваются в такт. Клик по строке перематывает.</p>
           <button class="btn primary" id="karaokePick">Выбрать трек</button>
         </div>
+      </div>
+    </section>
+
+    <!-- microphone song scanner -->
+    <section class="view" id="view-scanner" hidden>
+      <div class="sectionhead"><h2>Сканер песен</h2><span>микрофон · свои треки + внешний API</span></div>
+      <div class="card" style="padding:22px;border-radius:16px">
+        <p class="lead">Включи песню рядом с микрофоном — сервер сравнит звук с твоей библиотекой. Если задан ключ внешнего сервиса, распознает любую песню.</p>
+        <div class="row" style="display:flex;gap:9px;flex-wrap:wrap;margin-top:14px">
+          <button class="btn primary" id="scanStart">Слушать 5 секунд</button>
+          <label class="chip" style="gap:6px"><input type="checkbox" id="scanSpeak" checked> Озвучить результат</label>
+        </div>
+        <div id="scanStatus" class="note" style="margin-top:14px">Готов.</div>
       </div>
     </section>
 
@@ -2335,6 +2351,63 @@
   $('karaokePick').addEventListener('click', () => showView('tracks', 'all'));
   $('backBtn').addEventListener('click', () => history.back());
   $('fwdBtn').addEventListener('click', () => history.forward());
+
+  /* ---------- microphone song scanner ---------- */
+  $('scanStart').addEventListener('click', async () => {
+    const status = $('scanStatus');
+    let stream = null, ctx = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const rate = ctx.sampleRate;
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      processor.onaudioprocess = e => {
+        const input = e.inputBuffer.getChannelData(0);
+        const pcm = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++)
+          pcm[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
+        chunks.push(pcm);
+      };
+      source.connect(processor);
+      processor.connect(ctx.destination);
+      status.textContent = 'Слушаю 5 секунд…';
+      await new Promise(r => setTimeout(r, 5000));
+      processor.disconnect(); source.disconnect();
+      stream.getTracks().forEach(t => t.stop());
+      await ctx.close();
+
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      if (!total) { status.textContent = 'Микрофон не прислал звук.'; return; }
+      const all = new Int16Array(total);
+      let offset = 0;
+      chunks.forEach(c => { all.set(c, offset); offset += c.length; });
+      const bytes = new Uint8Array(all.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 8192)
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+      status.textContent = 'Ищу совпадение…';
+      const r = await api('/api/music/recognize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: btoa(binary), sampleRate: rate })
+      });
+      const data = r.data || {};
+      if (data.found) {
+        const text = 'Это «' + (data.title || 'без названия') + '» — ' + (data.artist || 'неизвестный артист');
+        status.textContent = text + (data.source === 'external' ? ' (внешний сервис)' : ' (твоя библиотека)');
+        if ($('scanSpeak').checked && 'speechSynthesis' in window)
+          speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+      } else {
+        status.textContent = data.reason || 'Не нашёл совпадения.';
+      }
+    } catch (err) {
+      status.textContent = 'Ошибка: ' + (err && err.message || err);
+    } finally {
+      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch { }
+      try { if (ctx && ctx.state !== 'closed') await ctx.close(); } catch { }
+    }
+  });
 
   /* ---------- boot ---------- */
   async function boot() {

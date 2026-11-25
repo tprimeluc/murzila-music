@@ -442,7 +442,7 @@ app.MapGet("/api/music/stats", async (HttpContext context, Db database, ApiServi
 app.MapGet("/api/servers", (HttpContext context) => Results.Json(new
 {
     service = "Murzila-Music",
-    version = "3.6.0",
+    version = "3.9.0",
     endpoints = new[]
     {
         new { name = "Веб-плеер (браузер)", url = "http://localhost:6001/player", kind = "web", safe = true },
@@ -456,7 +456,7 @@ app.MapGet("/api/servers", (HttpContext context) => Results.Json(new
     host = context.Request.Host.Value
 }));
 
-app.MapGet("/api/health", () => Results.Json(new { status = "ok", service = "Murzila-Music", version = "3.6.0" }));
+app.MapGet("/api/health", () => Results.Json(new { status = "ok", service = "Murzila-Music", version = "3.9.0" }));
 
 // Бесплатный перевод интерфейса на 50 языков: без ключей, с кэшем в памяти.
 // Плеер запрашивает только те строки, которых ещё нет в его локальном словаре.
@@ -541,6 +541,90 @@ app.MapPost("/api/translate", async (HttpContext context) =>
     });
     await Task.WhenAll(tasks);
     return Results.Json(new { map });
+});
+
+// Сканер песен: свой офлайн-матчинг + внешний провайдер, если задан ключ.
+var recognizerCache = new System.Collections.Concurrent.ConcurrentDictionary<string, float[][]>();
+
+app.MapPost("/api/music/recognize", async (HttpContext context, Db database, ApiService apiService, CloudStore cloud) =>
+{
+    string? audioBase64 = null;
+    int sampleRate = MusicRecognizer.SampleRate;
+    try
+    {
+        using var doc = await JsonDocument.ParseAsync(context.Request.Body);
+        if (doc.RootElement.TryGetProperty("audio", out var audioProp)) audioBase64 = audioProp.GetString();
+        if (doc.RootElement.TryGetProperty("sampleRate", out var srProp)) sampleRate = srProp.GetInt32();
+    }
+    catch { }
+    if (string.IsNullOrWhiteSpace(audioBase64))
+        return Results.BadRequest(new { error = "Нет аудио" });
+
+    byte[] raw;
+    try { raw = Convert.FromBase64String(audioBase64); }
+    catch { return Results.BadRequest(new { error = "Битое аудио" }); }
+    if (sampleRate <= 0) sampleRate = MusicRecognizer.SampleRate;
+    var pcm = new short[raw.Length / 2];
+    Buffer.BlockCopy(raw, 0, pcm, 0, pcm.Length * 2);
+    if (pcm.Length < sampleRate) return Results.Json(new { found = false, reason = "Слишком короткая запись" });
+
+    // Внешний провайдер для любых песен (нужен ключ).
+    string provider = Environment.GetEnvironmentVariable("MURZILA_RECOGNIZE_PROVIDER") ?? "";
+    string apiKey = Environment.GetEnvironmentVariable("MURZILA_RECOGNIZE_KEY") ?? "";
+    if (provider.Equals("audd", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(apiKey))
+    {
+        try
+        {
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(apiKey), "api_token");
+            form.Add(new StringContent("spotify,apple,title,artist"), "return");
+            byte[] wav = MusicRecognizer.ToWav(pcm, sampleRate);
+            form.Add(new ByteArrayContent(wav), "file", "mic.wav");
+            using var response = await uiTranslateClient.PostAsync("https://api.audd.io/", form);
+            string json = await response.Content.ReadAsStringAsync();
+            using var parsed = JsonDocument.Parse(json);
+            var result = parsed.RootElement.GetProperty("result");
+            if (result.ValueKind != JsonValueKind.Null)
+            {
+                string title = result.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+                string artist = result.TryGetProperty("artist", out var a) ? a.GetString() ?? "" : "";
+                return Results.Json(new { found = true, title, artist, source = "external" });
+            }
+        }
+        catch { }
+    }
+
+    // Свой офлайн-каталог.
+    var owner = await ResolveMusicOwnerAsync(context, database, apiService);
+    if (owner.UserId is null)
+        return Results.Json(new { found = false, source = "local", reason = "Войди в аккаунт или задай ключ внешнего сервиса" });
+
+    var mic = MusicRecognizer.Fingerprint(pcm, sampleRate);
+    string bestTitle = "", bestArtist = "";
+    double bestScore = 0;
+    foreach (var track in await cloud.ListAsync(owner.UserId))
+    {
+        try
+        {
+            string cacheKey = owner.UserId + "|" + track.Id;
+            if (!recognizerCache.TryGetValue(cacheKey, out var print))
+            {
+                string? path = await cloud.FilePathAsync(owner.UserId, track.Id, "file");
+                if (path is null || !File.Exists(path)) continue;
+                short[]? trackPcm = await MusicRecognizer.DecodeAsync(path);
+                if (trackPcm is null) continue;
+                print = MusicRecognizer.Fingerprint(trackPcm, MusicRecognizer.SampleRate);
+                recognizerCache[cacheKey] = print;
+            }
+            double score = MusicRecognizer.Score(mic, print);
+            if (score > bestScore) { bestScore = score; bestTitle = track.Title ?? ""; bestArtist = track.Artist ?? ""; }
+        }
+        catch { }
+    }
+
+    if (bestScore < 0.55)
+        return Results.Json(new { found = false, source = "local", score = bestScore, reason = "Совпадений в своей библиотеке нет" });
+    return Results.Json(new { found = true, title = bestTitle, artist = bestArtist, source = "local", score = bestScore });
 });
 
 app.MapPost("/api/auth/register", async (RegisterRequest request, Db database, HttpContext http) =>
