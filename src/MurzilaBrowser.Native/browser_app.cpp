@@ -1,6 +1,11 @@
 #include "browser_app.h"
 #include "browser_scheme.h"
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
+
 CefRefPtr<CefBrowser> g_browser;
 HWND g_url = nullptr;
 
@@ -12,9 +17,9 @@ HWND g_url = nullptr;
 
 void BrowserApp::OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCommandLine> command_line)
 {
-    // Пока GPU-процесс нестабилен на этой машине — безопасный софтверный рендер.
-    command_line->AppendSwitch("disable-gpu");
-    command_line->AppendSwitch("disable-gpu-compositing");
+    // Быстрый software-GPU через SwiftShader (стабильнее «голого» GPU здесь).
+    command_line->AppendSwitch("use-angle=swiftshader");
+    command_line->AppendSwitch("enable-unsafe-swiftshader");
 }
 
 void BrowserApp::OnContextInitialized()
@@ -54,6 +59,23 @@ void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title)
 
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int)
 {
-    if (g_url && browser && browser->GetMainFrame())
-        SetWindowTextW(g_url, browser->GetMainFrame()->GetURL().ToWString().c_str());
+    if (!browser || !browser->GetMainFrame()) return;
+    if (g_url) SetWindowTextW(g_url, browser->GetMainFrame()->GetURL().ToWString().c_str());
+
+    // Простая система расширений: все *.js из папки профиля выполняются на странице.
+    wchar_t appdata[MAX_PATH] = {};
+    GetEnvironmentVariableW(L"APPDATA", appdata, MAX_PATH);
+    std::filesystem::path dir = std::filesystem::path(appdata) / L"MurzilaBrowser" / L"extensions";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    for (const auto& file : std::filesystem::directory_iterator(dir, ec))
+    {
+        if (file.path().extension() != L".js") continue;
+        std::ifstream in(file.path(), std::ios::binary);
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        std::string code = ss.str();
+        if (!code.empty())
+            browser->GetMainFrame()->ExecuteJavaScript(code, browser->GetMainFrame()->GetURL(), 0);
+    }
 }

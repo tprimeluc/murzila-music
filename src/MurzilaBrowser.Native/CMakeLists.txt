@@ -24,7 +24,7 @@ add_executable(MurzilaBrowserNative WIN32
 
 target_include_directories(MurzilaBrowserNative PRIVATE ${CEF_ROOT})
 target_link_directories(MurzilaBrowserNative PRIVATE ${CEF_ROOT}/Release)
-target_link_libraries(MurzilaBrowserNative PRIVATE libcef libcef_dll_wrapper)
+target_link_libraries(MurzilaBrowserNative PRIVATE libcef libcef_dll_wrapper comdlg32 shell32)
 
 # Отключаем V-sync и лимит кадров в максимальном режиме.
 target_compile_definitions(MurzilaBrowserNative PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)

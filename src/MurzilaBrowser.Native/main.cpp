@@ -2,6 +2,8 @@
 #include "browser_app.h"
 
 #include <windows.h>
+#include <commdlg.h>
+#include <shellapi.h>
 #include <cstdlib>
 #include <cwchar>
 #include <fstream>
@@ -25,7 +27,8 @@ static double g_zoom = 0.0;
 enum {
     ID_BACK = 1001, ID_FORWARD, ID_RELOAD, ID_STOP, ID_HOME, ID_GO, ID_SEARCH,
     ID_YOUTUBE, ID_GITHUB, ID_COMPANY, ID_COPY, ID_ZIN, ID_ZOUT, ID_FULL,
-    ID_PRINT, ID_HISTORY, ID_BOOKMARK, ID_NEWTAB, ID_MENU, ID_MIN
+    ID_PRINT, ID_HISTORY, ID_BOOKMARK, ID_NEWTAB, ID_MENU, ID_MIN,
+    ID_EXTLOAD, ID_EXTDIR
 };
 
 static void LoadUrl(const std::wstring& input)
@@ -102,6 +105,33 @@ static void ExecuteCommand(HWND hwnd, int id)
         SaveLine(id == ID_HISTORY ? L"history.txt" : L"bookmarks.txt", url);
         break;
     }
+    case ID_EXTLOAD: {
+        wchar_t file[MAX_PATH] = {};
+        OPENFILENAMEW ofn = {};
+        ofn.lStructSize = sizeof(ofn); ofn.hwndOwner = hwnd;
+        ofn.lpstrFilter = L"JavaScript\0*.js\0";
+        ofn.lpstrFile = file; ofn.nMaxFile = MAX_PATH;
+        ofn.Flags = OFN_FILEMUSTEXIST;
+        if (GetOpenFileNameW(&ofn))
+        {
+            wchar_t appdata[MAX_PATH] = {};
+            GetEnvironmentVariableW(L"APPDATA", appdata, MAX_PATH);
+            std::wstring dir = std::wstring(appdata) + L"\\MurzilaBrowser\\extensions";
+            CreateDirectoryW(dir.c_str(), nullptr);
+            std::wstring dest = dir + L"\\" + std::wstring(std::wstring(file).substr(std::wstring(file).find_last_of(L"\\/") + 1));
+            CopyFileW(file, dest.c_str(), FALSE);
+            MessageBoxW(hwnd, L"Расширение установлено", L"Murzila Browser", MB_OK);
+        }
+        break;
+    }
+    case ID_EXTDIR: {
+        wchar_t appdata[MAX_PATH] = {};
+        GetEnvironmentVariableW(L"APPDATA", appdata, MAX_PATH);
+        std::wstring dir = std::wstring(appdata) + L"\\MurzilaBrowser\\extensions";
+        CreateDirectoryW(dir.c_str(), nullptr);
+        ShellExecuteW(hwnd, L"open", dir.c_str(), nullptr, nullptr, SW_SHOW);
+        break;
+    }
     case ID_MENU: {
         HMENU menu = CreatePopupMenu();
         AppendMenuW(menu, MF_STRING, ID_BACK, L"Назад");
@@ -122,6 +152,9 @@ static void ExecuteCommand(HWND hwnd, int id)
         AppendMenuW(menu, MF_STRING, ID_PRINT, L"Печать");
         AppendMenuW(menu, MF_STRING, ID_HISTORY, L"В историю");
         AppendMenuW(menu, MF_STRING, ID_BOOKMARK, L"В закладки");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, ID_EXTLOAD, L"Установить расширение (.js)");
+        AppendMenuW(menu, MF_STRING, ID_EXTDIR, L"Папка расширений");
         POINT p; GetCursorPos(&p);
         TrackPopupMenu(menu, TPM_RIGHTBUTTON, p.x, p.y, 0, hwnd, nullptr);
         DestroyMenu(menu);
@@ -179,6 +212,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         ScreenToClient(hwnd, &pt);
         if (pt.y < kBAR)
         {
+            if (pt.y < 10 || pt.y > 44) return HTCAPTION; // тонкая полоса для перетаскивания
             RECT rc; GetClientRect(hwnd, &rc);
             if (HitBarButton(hwnd, pt.x, pt.y) != 0) return HTCLIENT;
             if (pt.x >= 224 && pt.x < rc.right - 215) return HTCLIENT; // адресная строка
@@ -204,16 +238,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(255, 255, 255));
-        struct B { const char* text; int x; int w; } bs[] = {
-            { "<", 8, 34 }, { ">", 46, 34 }, { "R", 84, 34 }, { "X", 122, 34 },
-            { "H", 160, 34 }, { "+", 198, 22 }, { "GO", rc.right - 200, 40 },
-            { "_", rc.right - 155, 45 }, { "[]", rc.right - 105, 50 }, { "X", rc.right - 50, 50 }
+        HFONT font = CreateFontW(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH, L"Segoe UI Symbol");
+        HFONT old = (HFONT)SelectObject(hdc, font);
+        struct B { const wchar_t* text; int x; int w; } bs[] = {
+            { L"\u2190", 8, 34 }, { L"\u2192", 46, 34 }, { L"\u21bb", 84, 34 }, { L"\u25a0", 122, 34 },
+            { L"\u2302", 160, 34 }, { L"+", 198, 22 }, { L"\u2192", rc.right - 200, 40 },
+            { L"\u2212", rc.right - 155, 45 }, { L"\u25a1", rc.right - 105, 50 }, { L"\u00d7", rc.right - 50, 50 }
         };
         for (const auto& b : bs)
         {
             RECT r{ b.x, 12, b.x + b.w, 44 };
-            DrawTextA(hdc, b.text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(hdc, b.text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
+        SelectObject(hdc, old);
+        DeleteObject(font);
         EndPaint(hwnd, &ps); return 0;
     }
     default: return DefWindowProc(hwnd, msg, wParam, lParam);
