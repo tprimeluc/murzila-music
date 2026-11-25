@@ -13,7 +13,7 @@
 
 static HWND g_hwnd = nullptr;
 static HWND g_cefHost = nullptr;
-static HWND g_url = nullptr;
+
 static const int kBAR = 56;
 
 static LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -73,7 +73,7 @@ static void ExecuteCommand(HWND hwnd, int id)
     case ID_YOUTUBE: LoadUrl(L"https://www.youtube.com"); break;
     case ID_GITHUB: LoadUrl(L"https://github.com"); break;
     case ID_COMPANY: LoadUrl(L"http://mursik-corp.de5.net"); break;
-    case ID_NEWTAB: LoadUrl(L"murzila://home"); break;
+    case ID_NEWTAB: LoadUrl(L"murzila://newtab"); break;
     case ID_COPY: {
         if (!g_browser) break;
         std::wstring url = g_browser->GetMainFrame()->GetURL().ToWString();
@@ -177,7 +177,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_NCHITTEST: {
         POINT pt{ LOWORD(lParam), HIWORD(lParam) };
         ScreenToClient(hwnd, &pt);
-        if (pt.y < kBAR) return HTCAPTION;
+        if (pt.y < kBAR)
+        {
+            RECT rc; GetClientRect(hwnd, &rc);
+            if (HitBarButton(hwnd, pt.x, pt.y) != 0) return HTCLIENT;
+            if (pt.x >= 224 && pt.x < rc.right - 215) return HTCLIENT; // адресная строка
+            return HTCAPTION; // пустое место — перетаскивание окна
+        }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     case WM_CTLCOLORBTN:

@@ -2,6 +2,7 @@
 #include "browser_scheme.h"
 
 CefRefPtr<CefBrowser> g_browser;
+HWND g_url = nullptr;
 
 #include "include/cef_browser.h"
 #include "include/cef_scheme.h"
@@ -51,7 +52,8 @@ void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title)
     (void)title;
 }
 
-void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int)
+void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int)
 {
-    // TODO: остановить кружочек загрузки вкладки.
+    if (g_url && browser && browser->GetMainFrame())
+        SetWindowTextW(g_url, browser->GetMainFrame()->GetURL().ToWString().c_str());
 }

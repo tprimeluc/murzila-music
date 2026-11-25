@@ -7,6 +7,7 @@
 
 // Текущий браузер — нужен панели управления (назад, адрес, поиск...).
 extern CefRefPtr<CefBrowser> g_browser;
+extern HWND g_url;
 
 // Хост-приложение CEF: инициализация движка и создание первого браузера.
 class BrowserApp : public CefApp, public CefBrowserProcessHandler

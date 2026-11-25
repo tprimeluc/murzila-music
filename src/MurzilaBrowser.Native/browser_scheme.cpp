@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -41,7 +42,8 @@ button{border:none;border-radius:999px;background:#fff;color:#000;padding:0 22px
 class HomeResourceHandler : public CefResourceHandler
 {
 public:
-    HomeResourceHandler() : data_(kHomeHtml, sizeof(kHomeHtml) - 1) {}
+    explicit HomeResourceHandler(std::string data = std::string(kHomeHtml, sizeof(kHomeHtml) - 1))
+        : data_(std::move(data)) {}
 
     bool Open(CefRefPtr<CefRequest>, bool& handle_request, CefRefPtr<CefCallback>) override
     {
@@ -80,7 +82,18 @@ private:
 CefRefPtr<CefResourceHandler> HomeSchemeFactory::Create(CefRefPtr<CefBrowser>,
                                                          CefRefPtr<CefFrame>,
                                                          const CefString&,
-                                                         CefRefPtr<CefRequest>)
+                                                         CefRefPtr<CefRequest> request)
 {
+    std::string url = request->GetURL().ToString();
+    if (url.find("newtab") != std::string::npos)
+    {
+        std::string html = "<!DOCTYPE html><html lang='ru'><head><meta charset='utf-8'><title>Новая вкладка</title>"
+            "<style>body{background:#000;color:#fff;font-family:'Segoe UI',sans-serif;display:grid;place-items:center;height:100vh;margin:0}"
+            "h1{font-size:36px}input{height:44px;width:460px;border-radius:99px;border:1px solid #2a2a2a;background:#0a0a0a;color:#fff;padding:0 18px}"
+            "button{height:44px;border-radius:99px;border:0;background:#fff;color:#000;font-weight:700;padding:0 22px}</style></head><body><div>"
+            "<h1>Новая вкладка</h1><form action='https://duckduckgo.com/' method='get'>"
+            "<input name='q' placeholder='Поиск или адрес сайта' autofocus><button type='submit'>Найти</button></form></div></body></html>";
+        return new HomeResourceHandler(html);
+    }
     return new HomeResourceHandler();
 }
