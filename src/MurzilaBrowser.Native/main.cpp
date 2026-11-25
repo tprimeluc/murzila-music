@@ -5,6 +5,7 @@
 #include <commdlg.h>
 #include <shellapi.h>
 #include <cstdlib>
+#include <cstdio>
 #include <cwchar>
 #include <fstream>
 #include <string>
@@ -28,7 +29,11 @@ enum {
     ID_BACK = 1001, ID_FORWARD, ID_RELOAD, ID_STOP, ID_HOME, ID_GO, ID_SEARCH,
     ID_YOUTUBE, ID_GITHUB, ID_COMPANY, ID_COPY, ID_ZIN, ID_ZOUT, ID_FULL,
     ID_PRINT, ID_HISTORY, ID_BOOKMARK, ID_NEWTAB, ID_MENU, ID_MIN,
-    ID_EXTLOAD, ID_EXTDIR
+    ID_EXTLOAD, ID_EXTDIR,
+    ID_NEWWINDOW, ID_DOWNLOADS, ID_CLEARHIST, ID_CLEARBM, ID_SHOWHIST, ID_SHOWBM,
+    ID_SAVEPAGE, ID_READMODE, ID_DARKMODE, ID_LIGHTMODE, ID_TRANSLATE, ID_VIEWSOURCE,
+    ID_STATS, ID_ABOUT, ID_RELOADNOCACHE, ID_TOP, ID_BOTTOM, ID_OPENFILE,
+    ID_ADBLOCK, ID_EXIT
 };
 
 static void LoadUrl(const std::wstring& input)
@@ -41,6 +46,12 @@ static void LoadUrl(const std::wstring& input)
         else url = L"https://duckduckgo.com/?q=" + url;
     }
     g_browser->GetMainFrame()->LoadURL(CefString(url));
+}
+
+static void RunJS(const char* code)
+{
+    if (g_browser && g_browser->GetMainFrame())
+        g_browser->GetMainFrame()->ExecuteJavaScript(code, g_browser->GetMainFrame()->GetURL(), 0);
 }
 
 static std::wstring DataPath(const wchar_t* file)
@@ -105,6 +116,71 @@ static void ExecuteCommand(HWND hwnd, int id)
         SaveLine(id == ID_HISTORY ? L"history.txt" : L"bookmarks.txt", url);
         break;
     }
+    case ID_NEWWINDOW: {
+        wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        std::wstring url = g_browser ? g_browser->GetMainFrame()->GetURL().ToWString() : L"murzila://home";
+        std::wstring cmd = std::wstring(L"\"") + exe + L"\" \"" + url + L"\"";
+        STARTUPINFOW si = {}; PROCESS_INFORMATION pi = {};
+        CreateProcessW(exe, (LPWSTR)cmd.c_str(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+        break;
+    }
+    case ID_DOWNLOADS: {
+        wchar_t path[MAX_PATH] = {};
+        GetEnvironmentVariableW(L"USERPROFILE", path, MAX_PATH);
+        std::wstring dir = std::wstring(path) + L"\\Downloads";
+        ShellExecuteW(hwnd, L"open", dir.c_str(), nullptr, nullptr, SW_SHOW);
+        break;
+    }
+    case ID_CLEARHIST: DeleteFileW(DataPath(L"history.txt").c_str()); MessageBoxW(hwnd, L"История очищена", L"Murzila Browser", MB_OK); break;
+    case ID_CLEARBM: DeleteFileW(DataPath(L"bookmarks.txt").c_str()); MessageBoxW(hwnd, L"Закладки очищены", L"Murzila Browser", MB_OK); break;
+    case ID_SHOWHIST: ShellExecuteW(hwnd, L"open", L"notepad.exe", DataPath(L"history.txt").c_str(), nullptr, SW_SHOW); break;
+    case ID_SHOWBM: ShellExecuteW(hwnd, L"open", L"notepad.exe", DataPath(L"bookmarks.txt").c_str(), nullptr, SW_SHOW); break;
+    case ID_SAVEPAGE: {
+        if (!g_browser) break;
+        std::wstring url = g_browser->GetMainFrame()->GetURL().ToWString();
+        SaveLine(L"saved.txt", url);
+        MessageBoxW(hwnd, L"Страница сохранена в saved.txt", L"Murzila Browser", MB_OK);
+        break;
+    }
+    case ID_READMODE: RunJS("document.querySelectorAll('img,video,iframe,aside').forEach(e=>e.style.display='none');"); break;
+    case ID_DARKMODE: RunJS("document.documentElement.style.filter='invert(1) hue-rotate(180deg)';"); break;
+    case ID_LIGHTMODE: RunJS("document.documentElement.style.filter='';"); break;
+    case ID_TRANSLATE: {
+        if (!g_browser) break;
+        std::wstring url = g_browser->GetMainFrame()->GetURL().ToWString();
+        LoadUrl(L"https://translate.google.com/?sl=auto&tl=ru&u=" + url);
+        break;
+    }
+    case ID_VIEWSOURCE: {
+        if (!g_browser) break;
+        LoadUrl(L"view-source:" + g_browser->GetMainFrame()->GetURL().ToWString());
+        break;
+    }
+    case ID_STATS: {
+        wchar_t msg[256];
+        swprintf(msg, 256, L"Загрузок страниц: %d\nВремя работы: %llu сек", g_loadCount, (GetTickCount64() / 1000));
+        MessageBoxW(hwnd, msg, L"Статистика", MB_OK);
+        break;
+    }
+    case ID_ABOUT: MessageBoxW(hwnd, L"Murzila Browser 1.0.0 (C++)\nСвой хром поверх CEF", L"О браузере", MB_OK); break;
+    case ID_RELOADNOCACHE: if (g_browser) g_browser->ReloadIgnoreCache(); break;
+    case ID_TOP: RunJS("window.scrollTo(0,0);"); break;
+    case ID_BOTTOM: RunJS("window.scrollTo(0,document.body.scrollHeight);"); break;
+    case ID_OPENFILE: {
+        wchar_t file[MAX_PATH] = {};
+        OPENFILENAMEW ofn = {}; ofn.lStructSize = sizeof(ofn); ofn.hwndOwner = hwnd;
+        ofn.lpstrFile = file; ofn.nMaxFile = MAX_PATH; ofn.Flags = OFN_FILEMUSTEXIST;
+        if (GetOpenFileNameW(&ofn))
+        {
+            std::wstring path(file);
+            std::wstring url = L"file:///" + path;
+            for (auto& c : url) if (c == L'\\') c = L'/';
+            LoadUrl(url);
+        }
+        break;
+    }
+    case ID_ADBLOCK: RunJS("document.querySelectorAll('[id*=ad],[class*=ad],[class*=banner]').forEach(e=>e.style.display='none');"); break;
+    case ID_EXIT: PostQuitMessage(0); break;
     case ID_EXTLOAD: {
         wchar_t file[MAX_PATH] = {};
         OPENFILENAMEW ofn = {};
@@ -155,6 +231,29 @@ static void ExecuteCommand(HWND hwnd, int id)
         AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(menu, MF_STRING, ID_EXTLOAD, L"Установить расширение (.js)");
         AppendMenuW(menu, MF_STRING, ID_EXTDIR, L"Папка расширений");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, ID_NEWWINDOW, L"Новое окно");
+        AppendMenuW(menu, MF_STRING, ID_DOWNLOADS, L"Папка загрузок");
+        AppendMenuW(menu, MF_STRING, ID_SHOWHIST, L"Показать историю");
+        AppendMenuW(menu, MF_STRING, ID_SHOWBM, L"Показать закладки");
+        AppendMenuW(menu, MF_STRING, ID_CLEARHIST, L"Очистить историю");
+        AppendMenuW(menu, MF_STRING, ID_CLEARBM, L"Очистить закладки");
+        AppendMenuW(menu, MF_STRING, ID_SAVEPAGE, L"Сохранить страницу");
+        AppendMenuW(menu, MF_STRING, ID_OPENFILE, L"Открыть локальный файл");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, ID_READMODE, L"Режим чтения");
+        AppendMenuW(menu, MF_STRING, ID_DARKMODE, L"Тёмная тема страницы");
+        AppendMenuW(menu, MF_STRING, ID_LIGHTMODE, L"Светлая тема страницы");
+        AppendMenuW(menu, MF_STRING, ID_ADBLOCK, L"Блокировать рекламу");
+        AppendMenuW(menu, MF_STRING, ID_TRANSLATE, L"Перевести страницу");
+        AppendMenuW(menu, MF_STRING, ID_VIEWSOURCE, L"Исходный код страницы");
+        AppendMenuW(menu, MF_STRING, ID_RELOADNOCACHE, L"Обновить без кэша");
+        AppendMenuW(menu, MF_STRING, ID_TOP, L"Наверх страницы");
+        AppendMenuW(menu, MF_STRING, ID_BOTTOM, L"Вниз страницы");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, ID_STATS, L"Статистика");
+        AppendMenuW(menu, MF_STRING, ID_ABOUT, L"О браузере");
+        AppendMenuW(menu, MF_STRING, ID_EXIT, L"Выход");
         POINT p; GetCursorPos(&p);
         TrackPopupMenu(menu, TPM_RIGHTBUTTON, p.x, p.y, 0, hwnd, nullptr);
         DestroyMenu(menu);
@@ -201,6 +300,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (id) { ExecuteCommand(hwnd, id); return 0; }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
+    case WM_RBUTTONDOWN: ExecuteCommand(hwnd, ID_MENU); return 0;
     case WM_COMMAND: ExecuteCommand(hwnd, LOWORD(wParam)); return 0;
     case WM_KEYDOWN:
         if (wParam == 'L' && (GetKeyState(VK_CONTROL) & 0x8000)) { SetFocus(g_url); return 0; }

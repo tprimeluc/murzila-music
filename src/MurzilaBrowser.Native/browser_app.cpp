@@ -8,6 +8,8 @@
 
 CefRefPtr<CefBrowser> g_browser;
 HWND g_url = nullptr;
+std::wstring g_initialUrl;
+int g_loadCount = 0;
 
 #include "include/cef_browser.h"
 #include "include/cef_scheme.h"
@@ -60,6 +62,7 @@ void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title)
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int)
 {
     if (!browser || !browser->GetMainFrame()) return;
+    ++g_loadCount;
     if (g_url) SetWindowTextW(g_url, browser->GetMainFrame()->GetURL().ToWString().c_str());
 
     // Простая система расширений: все *.js из папки профиля выполняются на странице.

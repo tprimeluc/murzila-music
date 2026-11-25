@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <string>
 #include "include/cef_app.h"
 #include "include/cef_client.h"
 #include "include/cef_browser.h"
@@ -8,6 +9,8 @@
 // Текущий браузер — нужен панели управления (назад, адрес, поиск...).
 extern CefRefPtr<CefBrowser> g_browser;
 extern HWND g_url;
+extern std::wstring g_initialUrl;
+extern int g_loadCount;
 
 // Хост-приложение CEF: инициализация движка и создание первого браузера.
 class BrowserApp : public CefApp, public CefBrowserProcessHandler
