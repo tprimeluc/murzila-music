@@ -12,6 +12,10 @@ if (-not $file) { throw 'Minimal CEF archive not found' }
 
 $url = 'https://cef-builds.spotifycdn.com/' + $file.name
 $archive = Join-Path $dest $file.name
+if ((Test-Path $archive) -and ((Get-Item $archive).Length -ne $file.size)) {
+    Write-Host 'Removing incomplete archive...'
+    Remove-Item -Force $archive
+}
 if (-not (Test-Path $archive)) {
     Write-Host ('Downloading ' + $file.name + ' (' + [math]::Round($file.size/1MB) + ' MB)...')
     Invoke-WebRequest -Uri $url -OutFile $archive -TimeoutSec 1800
