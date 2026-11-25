@@ -19,6 +19,7 @@ add_subdirectory(${CEF_ROOT} cef_build)
 add_executable(MurzilaBrowserNative WIN32
   main.cpp
   browser_app.cpp
+  browser_scheme.cpp
 )
 
 target_include_directories(MurzilaBrowserNative PRIVATE ${CEF_ROOT})

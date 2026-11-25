@@ -17,6 +17,35 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_CLOSE:
         DestroyWindow(hwnd);
         return 0;
+    case WM_NCHITTEST: {
+        POINT pt{ LOWORD(lParam), HIWORD(lParam) };
+        ScreenToClient(hwnd, &pt);
+        if (pt.y < 48) return HTCAPTION;
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    case WM_LBUTTONDOWN: {
+        int x = LOWORD(lParam), y = HIWORD(lParam);
+        if (y < 48 && x > 1120) { DestroyWindow(hwnd); return 0; }
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        FillRect(hdc, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        RECT bar{ 0, 0, rc.right, 48 };
+        HBRUSH brush = CreateSolidBrush(RGB(10, 10, 10));
+        FillRect(hdc, &bar, brush);
+        DeleteObject(brush);
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        DrawTextA(hdc, "MURZILA BROWSER", -1, &bar, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        RECT close{ rc.right - 44, 0, rc.right, 48 };
+        DrawTextA(hdc, "X", -1, &close, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -41,7 +70,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     g_hwnd = CreateWindowW(
         wc.lpszClassName,
         L"Murzila Browser",
-        WS_OVERLAPPEDWINDOW,
+        WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN,
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760,
         nullptr, nullptr, hInstance, nullptr);
     if (!g_hwnd) return 1;

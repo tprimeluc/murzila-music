@@ -1,6 +1,8 @@
 #include "browser_app.h"
+#include "browser_scheme.h"
 
 #include "include/cef_browser.h"
+#include "include/cef_scheme.h"
 #include "include/cef_command_line.h"
 #include "include/cef_frame.h"
 #include "include/cef_sandbox_win.h"
@@ -15,17 +17,19 @@ void BrowserApp::OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCo
 void BrowserApp::OnContextInitialized()
 {
     if (!parent_) return;
+    CefRegisterSchemeHandlerFactory("murzila", "", new HomeSchemeFactory());
+
     RECT rect;
     GetClientRect(parent_, &rect);
 
     CefWindowInfo info;
-    info.SetAsChild(parent_, CefRect(0, 0, rect.right - rect.left, rect.bottom - rect.top));
+    info.SetAsChild(parent_, CefRect(0, 48, rect.right - rect.left, rect.bottom - rect.top - 48));
 
     CefBrowserSettings settings;
     settings.windowless_frame_rate = 100000;
 
     CefRefPtr<BrowserClient> client = new BrowserClient();
-    CefBrowserHost::CreateBrowser(info, client, "http://mursik-corp.de5.net", settings, nullptr, nullptr);
+    CefBrowserHost::CreateBrowser(info, client, "murzila://home", settings, nullptr, nullptr);
 }
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
