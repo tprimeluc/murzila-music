@@ -24,6 +24,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
+    CefMainArgs args(hInstance);
+
+    // Сначала обрабатываем дочерние процессы CEF — они не должны создавать окна.
+    CefRefPtr<BrowserApp> subprocessApp = new BrowserApp(nullptr);
+    int subprocessResult = CefExecuteProcess(args, subprocessApp, nullptr);
+    if (subprocessResult >= 0) return subprocessResult;
+
     WNDCLASSW wc = {};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -42,7 +49,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     ShowWindow(g_hwnd, nCmdShow);
     UpdateWindow(g_hwnd);
 
-    CefMainArgs args(hInstance);
     CefSettings settings;
     settings.windowless_rendering_enabled = false;
     wchar_t exePath[MAX_PATH] = {};
@@ -54,9 +60,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     CefString(&settings.locale).FromASCII("en-US");
 
     CefRefPtr<BrowserApp> app = new BrowserApp(g_hwnd);
-    int subprocessResult = CefExecuteProcess(args, app, nullptr);
-    if (subprocessResult >= 0) return subprocessResult;
-
     if (!CefInitialize(args, settings, app, nullptr))
     {
         MessageBoxW(g_hwnd, L"CEF initialization failed", L"Murzila Browser", MB_ICONERROR);

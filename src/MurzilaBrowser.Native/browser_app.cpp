@@ -14,6 +14,7 @@ void BrowserApp::OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCo
 
 void BrowserApp::OnContextInitialized()
 {
+    if (!parent_) return;
     RECT rect;
     GetClientRect(parent_, &rect);
 
