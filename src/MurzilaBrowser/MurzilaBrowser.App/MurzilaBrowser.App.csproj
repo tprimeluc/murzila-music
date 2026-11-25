@@ -22,7 +22,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\*" />
     <EmbeddedResource Include="Assets\pages.manifest.json" />
-    <Resource Include="..\..\..\Murzila-Music.png" Link="Assets\icon.png" />
+    <Resource Include="Assets\browser-icon.png" />
   </ItemGroup>
 
 </Project>

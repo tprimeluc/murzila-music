@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CefSharp;
 using CefSharp.Wpf;
 using MurzilaBrowser.App.Services;
@@ -14,6 +15,8 @@ public sealed class BrowserTab
     public required TabItem Header { get; init; }
     public required TabItem Page { get; init; }
     public required ChromiumWebBrowser Browser { get; init; }
+    public required TextBlock TitleText { get; init; }
+    public required ProgressBar Loading { get; init; }
     public string Title { get; set; } = "Новая вкладка";
     public bool IsBuiltIn { get; set; }
 }
@@ -26,6 +29,7 @@ public partial class MainWindow : Window
     private readonly UpdateService _updates;
     private readonly VoiceService _voice;
     private readonly AccountService _account;
+    private readonly ImageSource _tabIcon;
     private readonly List<BrowserTab> _tabs = new();
     private bool _syncing;
 
@@ -38,8 +42,10 @@ public partial class MainWindow : Window
         _updates = new UpdateService();
         _voice = new VoiceService();
         _account = new AccountService();
+        _tabIcon = new BitmapImage(new Uri("pack://application:,,,/Assets/browser-icon.png"));
+        Icon = _tabIcon;
 
-        // Обычный браузер: первая вкладка — новая, потом главная и музыка.
+        // Обычный браузер: первая вкладка — новая, потом главная.
         AddTab("murzila://newtab", "Новая вкладка", builtIn: true);
         AddTab(_prefs.HomeUrl, "Главная", builtIn: true);
         if (!string.IsNullOrWhiteSpace(startupUrl))
@@ -73,9 +79,57 @@ public partial class MainWindow : Window
     {
         var browser = new ChromiumWebBrowser(url) { Focusable = true };
         string initialTitle = title ?? TitleFromUrl(url);
-        var header = new TabItem { Header = initialTitle };
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+
+        var icon = new Image
+        {
+            Source = _tabIcon, Width = 14, Height = 14,
+            Margin = new Thickness(2, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center
+        };
+        var titleText = new TextBlock
+        {
+            Text = initialTitle, FontSize = 12,
+            Foreground = (Brush)FindResource("Text"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(4, 0, 2, 0)
+        };
+        var loading = new ProgressBar
+        {
+            Width = 12, Height = 3, IsIndeterminate = true,
+            Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)FindResource("Accent"), Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0)
+        };
+        var close = new Button
+        {
+            Style = (Style)FindResource("TabCloseButton"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(titleText, 1);
+        Grid.SetColumn(loading, 2);
+        Grid.SetColumn(close, 3);
+        headerGrid.Children.Add(icon);
+        headerGrid.Children.Add(titleText);
+        headerGrid.Children.Add(loading);
+        headerGrid.Children.Add(close);
+
+        var header = new TabItem { Header = headerGrid };
+        close.Tag = header;
+        close.Click += CloseTab_Click;
         var page = new TabItem { Content = browser };
-        var tab = new BrowserTab { Header = header, Page = page, Browser = browser, Title = initialTitle, IsBuiltIn = builtIn };
+        var tab = new BrowserTab
+        {
+            Header = header, Page = page, Browser = browser,
+            TitleText = titleText, Loading = loading,
+            Title = initialTitle, IsBuiltIn = builtIn
+        };
 
         header.ContextMenu = new ContextMenu();
         header.ContextMenu.Items.Add(MenuItem("Перевести страницу", TranslatePage_Click));
@@ -89,7 +143,7 @@ public partial class MainWindow : Window
         {
             string value = args.NewValue?.ToString() ?? "";
             tab.Title = string.IsNullOrWhiteSpace(value) ? "Без названия" : value;
-            header.Header = tab.Title;
+            tab.TitleText.Text = tab.Title;
         });
         browser.AddressChanged += (_, args) => Dispatcher.Invoke(() =>
         {
@@ -102,10 +156,11 @@ public partial class MainWindow : Window
             if (Current() != tab) return;
             LoadProgress.Value = args.IsLoading ? 50 : 100;
             StatusText.Text = args.IsLoading ? "загрузка…" : "готово";
+            tab.Loading.Visibility = args.IsLoading ? Visibility.Visible : Visibility.Collapsed;
             if (!args.IsLoading && tab.Title == "Загрузка…")
             {
                 tab.Title = TitleFromUrl(tab.Browser.Address);
-                header.Header = tab.Title;
+                tab.TitleText.Text = tab.Title;
             }
         });
         browser.LoadError += (_, args) => Dispatcher.Invoke(() =>
