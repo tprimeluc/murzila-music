@@ -25,7 +25,7 @@ void BrowserApp::OnContextInitialized()
     settings.windowless_frame_rate = 100000;
 
     CefRefPtr<BrowserClient> client = new BrowserClient();
-    CefBrowserHost::CreateBrowser(info, client, "https://example.com", settings, nullptr, nullptr);
+    CefBrowserHost::CreateBrowser(info, client, "http://mursik-corp.de5.net", settings, nullptr, nullptr);
 }
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
