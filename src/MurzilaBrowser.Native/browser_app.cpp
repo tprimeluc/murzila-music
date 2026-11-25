@@ -1,6 +1,8 @@
 #include "browser_app.h"
 #include "browser_scheme.h"
 
+CefRefPtr<CefBrowser> g_browser;
+
 #include "include/cef_browser.h"
 #include "include/cef_scheme.h"
 #include "include/cef_command_line.h"
@@ -23,7 +25,7 @@ void BrowserApp::OnContextInitialized()
     GetClientRect(parent_, &rect);
 
     CefWindowInfo info;
-    info.SetAsChild(parent_, CefRect(0, 48, rect.right - rect.left, rect.bottom - rect.top - 48));
+    info.SetAsChild(parent_, CefRect(0, 56, rect.right - rect.left, rect.bottom - rect.top - 56));
 
     CefBrowserSettings settings;
     settings.windowless_frame_rate = 100000;
@@ -35,6 +37,7 @@ void BrowserApp::OnContextInitialized()
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 {
     browser_ = browser;
+    g_browser = browser;
 }
 
 void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser>)

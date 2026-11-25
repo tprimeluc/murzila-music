@@ -5,6 +5,9 @@
 #include "include/cef_client.h"
 #include "include/cef_browser.h"
 
+// Текущий браузер — нужен панели управления (назад, адрес, поиск...).
+extern CefRefPtr<CefBrowser> g_browser;
+
 // Хост-приложение CEF: инициализация движка и создание первого браузера.
 class BrowserApp : public CefApp, public CefBrowserProcessHandler
 {
