@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Производительность</title>
+  <link rel="stylesheet" href="murzila://res/style.css">
+  <style>
+    body{overflow:auto}
+    canvas{width:100%;height:520px;display:block;background:#070a0f;border:1px solid var(--line);border-radius:14px}
+    .hud{position:absolute;top:160px;left:60px;background:#0e1420cc;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font:12px Consolas}
+  </style>
+</head>
+<body>
+<div class="shell"><div class="wrap">
+  <div class="brand"><div class="mark"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg></div><div>Р Е Ж И М  1 000 000<small>GPU-ОБЪЕКТОВ · WEBGL</small></div></div>
+  <h1>Миллион объектов</h1>
+  <p class="lead">Данные живут в GPU-буфере и рисуются одним вызовом instanced points. DOM не используется — так браузер держит 1 000 000 объектов.</p>
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud">FPS: — · объектов: 1 000 000</div>
+</div></div>
+<script>
+const c = document.getElementById('c');
+const gl = c.getContext('webgl2') || c.getContext('webgl');
+const hud = document.getElementById('hud');
+const N = 1000000;
+if (!gl) { hud.textContent = 'WebGL недоступен'; } else {
+  const data = new Float32Array(N * 2);
+  for (let i = 0; i < N; i++) { data[i*2] = Math.random()*2-1; data[i*2+1] = Math.random()*2-1; }
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, 'attribute vec2 p; uniform float t; void main(){ float a=t*0.0002; mat2 r=mat2(cos(a),-sin(a),sin(a),cos(a)); gl_Position=vec4(r*p,0.0,1.0); gl_PointSize=1.2; }');
+  gl.compileShader(vs);
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, 'void main(){ gl_FragColor=vec4(0.2,0.75,1.0,0.7); }');
+  gl.compileShader(fs);
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog);
+  const loc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const tloc = gl.getUniformLocation(prog, 't');
+  let frames = 0, last = performance.now();
+  function frame(t) {
+    c.width = c.clientWidth; c.height = c.clientHeight;
+    gl.viewport(0,0,c.width,c.height);
+    gl.clearColor(0.02,0.03,0.05,1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(tloc, t);
+    gl.drawArrays(gl.POINTS, 0, N);
+    frames++;
+    if (t - last > 1000) { hud.textContent = 'FPS: ' + Math.round(frames*1000/(t-last)) + ' · объектов: 1 000 000'; frames=0; last=t; }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

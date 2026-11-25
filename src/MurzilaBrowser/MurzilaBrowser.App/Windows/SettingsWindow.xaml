@@ -50,11 +50,15 @@
             <CheckBox x:Name="VoiceCheck" Content="Голосовой перевод и субтитры" Foreground="#f5f7fb" Margin="0,4"/>
             <CheckBox x:Name="LiveCheck" Content="Живые голоса" Foreground="#f5f7fb" Margin="0,4"/>
             <CheckBox x:Name="UpdateCheck" Content="Проверять обновления при запуске" Foreground="#f5f7fb" Margin="0,4"/>
+            <CheckBox x:Name="MaxPerfCheck" Content="Макс. производительность (до 100k FPS, без V-sync)" Foreground="#f5f7fb" Margin="0,4"/>
+            <CheckBox x:Name="MillionCheck" Content="Режим 1 000 000 объектов (GPU)" Foreground="#f5f7fb" Margin="0,4"/>
             <TextBlock Text="Обновления приходят из приложения, интернет обязателен." Foreground="#6c778c"
                        FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="FeaturesBtn" Content="Возможности" Click="FeaturesBtn_Click"/>
+            <Button x:Name="PerfBtn" Content="1 млн объектов" Click="PerfBtn_Click"/>
             <Button x:Name="CancelBtn" Content="Отмена" Click="Cancel_Click"/>
             <Button x:Name="SaveBtn" Content="Сохранить" Click="Save_Click" Background="#4f8cff" Foreground="#07101f"/>
         </StackPanel>

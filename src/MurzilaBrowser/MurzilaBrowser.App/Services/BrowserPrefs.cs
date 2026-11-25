@@ -14,6 +14,10 @@ public sealed class BrowserPrefs
     public bool EnableVoiceTranslation { get; set; } = true;
     public bool EnableLiveVoices { get; set; } = true;
     public bool EnableInAppUpdates { get; set; } = true;
+    public bool MaxPerformance { get; set; } = false;
+    public bool DisableVSync { get; set; } = false;
+    public int MaxFps { get; set; } = 100000;
+    public bool MillionObjectsMode { get; set; } = false;
 
     public static IReadOnlyDictionary<string, string> SearchEngines => new Dictionary<string, string>
     {

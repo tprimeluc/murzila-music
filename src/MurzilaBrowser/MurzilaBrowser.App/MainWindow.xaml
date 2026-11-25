@@ -138,13 +138,14 @@
                     <ColumnDefinition Width="116"/>
                 </Grid.ColumnDefinitions>
                 <Path Grid.Column="0" Width="18" Height="18" Stretch="Uniform" Fill="{StaticResource Accent}"
-                      HorizontalAlignment="Center" Data="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zm-1 3h2v6h-2V8zm0 8h2v2h-2v-2z"/>
+                      HorizontalAlignment="Center" Data="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.6 0 3 .5 4.2 1.4-.8 1.4-1.2 3-1.2 4.6 0 .5 0 1 .1 1.4-1.8-1-3.9-1.6-6.1-1.7.9-1.7 1.4-3.5 1.5-5.3H12zm0 16c-1.6 0-3-.5-4.2-1.4.8-1.4 1.2-3 1.2-4.6 0-.5 0-1-.1-1.4 1.8 1 3.9 1.6 6.1 1.7-.9 1.7-1.4 3.5-1.5 5.3H12z"/>
                 <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TabControl x:Name="Tabs" Grid.Column="0" Style="{StaticResource ChromeTabsStyle}" BorderThickness="0" Background="Transparent" SelectionChanged="Tabs_SelectionChanged"/>
+                    <TabControl x:Name="Tabs" Grid.Column="0" HorizontalAlignment="Left" Style="{StaticResource ChromeTabsStyle}" BorderThickness="0" Background="Transparent" SelectionChanged="Tabs_SelectionChanged"/>
                     <Button Grid.Column="1" Width="30" Height="30" VerticalAlignment="Center" Margin="2,0,4,0"
                             Style="{StaticResource ChromeButton}" Foreground="{StaticResource Accent}"
                             Click="NewTab_Click" ToolTip="Новая вкладка">
@@ -214,9 +215,6 @@
                     </Grid>
                 </Border>
 
-                <Button Grid.Column="5" Style="{StaticResource ChromeButton}" Click="Features_Click" ToolTip="50 возможностей">
-                    <TextBlock Text="50" FontSize="12" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
-                </Button>
                 <Button Grid.Column="6" Style="{StaticResource ChromeButton}" Click="Bookmark_Click" ToolTip="Добавить закладку">
                     <Path x:Name="StarIcon" Data="M12,3 L14.6,8.6 L20.8,9.3 L16.3,13.3 L17.6,19.4 L12,16.2 L6.4,19.4 L7.7,13.3 L3.2,9.3 L9.4,8.6 Z"
                           Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" Fill="Transparent"/>
@@ -232,8 +230,14 @@
             </Grid>
 
             <!-- Pages -->
-            <TabControl x:Name="PageTabs" Grid.Row="2" Style="{StaticResource ContentTabsStyle}" Background="{StaticResource Bg}"
-                        BorderThickness="0" SelectionChanged="PageTabs_SelectionChanged" Margin="0,0,0,0"/>
+            <Grid Grid.Row="2">
+                <TabControl x:Name="PageTabs" Style="{StaticResource ContentTabsStyle}" Background="{StaticResource Bg}"
+                            BorderThickness="0" SelectionChanged="PageTabs_SelectionChanged" Margin="0,0,0,0"/>
+                <Button x:Name="FullHdBtn" Content="FULL HD" VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Margin="0,14,22,0" Panel.ZIndex="20" Padding="12,5" FontSize="11" FontWeight="Bold"
+                        Foreground="#07101f" Background="#4f8cff" BorderThickness="0" Cursor="Hand"
+                        Click="FullHd_Click" ToolTip="Включить 1080p на видео"/>
+            </Grid>
 
             <!-- Status bar -->
             <Grid Grid.Row="3" Background="{StaticResource Panel}">

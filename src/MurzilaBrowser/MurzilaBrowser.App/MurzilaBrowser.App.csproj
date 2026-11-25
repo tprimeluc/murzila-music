@@ -23,6 +23,7 @@
     <EmbeddedResource Include="Resources\*" />
     <EmbeddedResource Include="Assets\pages.manifest.json" />
     <Resource Include="Assets\browser-icon.png" />
+    <Resource Include="Assets\browser-icon.ico" />
   </ItemGroup>
 
 </Project>

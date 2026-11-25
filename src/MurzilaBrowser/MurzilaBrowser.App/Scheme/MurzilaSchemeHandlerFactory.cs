@@ -16,6 +16,7 @@ public sealed class MurzilaSchemeHandlerFactory : ISchemeHandlerFactory
     {
         ["home"] = ("home.html", "text/html"),
         ["newtab"] = ("newtab.html", "text/html"),
+        ["perf"] = ("perf.html", "text/html"),
         ["error"] = ("error.html", "text/html")
     };
 

@@ -44,6 +44,12 @@ public partial class App : Application
             LogFile = Path.Combine(BrowserPrefs.ProfilePath, "cef.log")
         };
         if (!prefs.HardwareAcceleration || prefs.LowEndMode) settings.DisableGpuAcceleration();
+        if (prefs.MaxPerformance || prefs.DisableVSync)
+        {
+            settings.CefCommandLineArgs["disable-frame-rate-limit"] = "1";
+            settings.CefCommandLineArgs["disable-gpu-vsync"] = "1";
+            settings.CefCommandLineArgs["disable-smooth-scrolling"] = "1";
+        }
         settings.RegisterScheme(new CefCustomScheme
         {
             SchemeName = "murzila",

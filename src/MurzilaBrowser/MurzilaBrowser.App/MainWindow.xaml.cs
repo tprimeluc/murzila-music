@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using CefSharp;
 using CefSharp.Wpf;
@@ -16,7 +17,8 @@ public sealed class BrowserTab
     public required TabItem Page { get; init; }
     public required ChromiumWebBrowser Browser { get; init; }
     public required TextBlock TitleText { get; init; }
-    public required ProgressBar Loading { get; init; }
+    public required System.Windows.Shapes.Path Loading { get; init; }
+    public required Storyboard LoadingStoryboard { get; init; }
     public string Title { get; set; } = "Новая вкладка";
     public bool IsBuiltIn { get; set; }
 }
@@ -43,7 +45,7 @@ public partial class MainWindow : Window
         _voice = new VoiceService();
         _account = new AccountService();
         _tabIcon = new BitmapImage(new Uri("pack://application:,,,/Assets/browser-icon.png"));
-        Icon = _tabIcon;
+        Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/browser-icon.ico"));
 
         // Обычный браузер: первая вкладка — новая, потом главная.
         AddTab("murzila://newtab", "Новая вкладка", builtIn: true);
@@ -90,6 +92,7 @@ public partial class MainWindow : Window
             Source = _tabIcon, Width = 14, Height = 14,
             Margin = new Thickness(2, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center
         };
+        browser.DisplayHandler = new FaviconHandler(img => Dispatcher.Invoke(() => icon.Source = img));
         var titleText = new TextBlock
         {
             Text = initialTitle, FontSize = 12,
@@ -98,13 +101,26 @@ public partial class MainWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(4, 0, 2, 0)
         };
-        var loading = new ProgressBar
+        var rotate = new RotateTransform(0, 7, 7);
+        var loading = new System.Windows.Shapes.Path
         {
-            Width = 12, Height = 3, IsIndeterminate = true,
-            Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Brush)FindResource("Accent"), Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0)
+            Width = 14, Height = 14, Stretch = Stretch.Uniform,
+            Data = Geometry.Parse("M 7,1 A 6,6 0 1 1 1,7"),
+            Stroke = (Brush)FindResource("Accent"), StrokeThickness = 2,
+            StrokeStartLineCap = PenLineCap.Round,
+            RenderTransform = rotate,
+            Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
         };
+        var spin = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(0.7))
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        Storyboard.SetTarget(spin, rotate);
+        Storyboard.SetTargetProperty(spin, new PropertyPath(RotateTransform.AngleProperty));
+        var loadingStoryboard = new Storyboard();
+        loadingStoryboard.Children.Add(spin);
         var close = new Button
         {
             Style = (Style)FindResource("TabCloseButton"),
@@ -127,7 +143,7 @@ public partial class MainWindow : Window
         var tab = new BrowserTab
         {
             Header = header, Page = page, Browser = browser,
-            TitleText = titleText, Loading = loading,
+            TitleText = titleText, Loading = loading, LoadingStoryboard = loadingStoryboard,
             Title = initialTitle, IsBuiltIn = builtIn
         };
 
@@ -150,6 +166,8 @@ public partial class MainWindow : Window
             string address = args.NewValue?.ToString() ?? "";
             if (Current() == tab) AddressBox.Text = address;
             _data.AddHistory(address, tab.Title);
+            if (address.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                FaviconHandler.FetchForUrl(address, img => Dispatcher.Invoke(() => icon.Source = img));
         });
         browser.LoadingStateChanged += (_, args) => Dispatcher.Invoke(() =>
         {
@@ -157,6 +175,8 @@ public partial class MainWindow : Window
             LoadProgress.Value = args.IsLoading ? 50 : 100;
             StatusText.Text = args.IsLoading ? "загрузка…" : "готово";
             tab.Loading.Visibility = args.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+            if (args.IsLoading) tab.LoadingStoryboard.Begin();
+            else tab.LoadingStoryboard.Stop();
             if (!args.IsLoading && tab.Title == "Загрузка…")
             {
                 tab.Title = TitleFromUrl(tab.Browser.Address);
@@ -273,6 +293,21 @@ public partial class MainWindow : Window
         StatusText.Text = "закладка добавлена: " + tab.Title;
     }
 
+    private async void FullHd_Click(object sender, RoutedEventArgs e)
+    {
+        var tab = Current();
+        if (tab == null) return;
+        try
+        {
+            string result = await tab.Browser.EvaluateScriptAsync<string>(
+                "(function(){var v=document.querySelector('video'); if(!v) return 'no-video';" +
+                "try{ if(v.setPlaybackQuality) v.setPlaybackQuality('hd1080'); }catch(err){}" +
+                "return v.videoWidth+'x'+v.videoHeight;})()");
+            StatusText.Text = "FULL HD: " + (string.IsNullOrWhiteSpace(result) ? "включено" : result);
+        }
+        catch { StatusText.Text = "FULL HD недоступно на этой странице"; }
+    }
+
     private void Features_Click(object sender, RoutedEventArgs e)
     {
         var window = new FeaturesWindow(_data, _updates, _voice) { Owner = this };
@@ -285,7 +320,9 @@ public partial class MainWindow : Window
         if (window.ShowDialog() == true)
         {
             ApplyZoomToAll(_prefs.DefaultZoomPercent);
-            StatusText.Text = "настройки сохранены";
+            if (window.OpenFeatures) Features_Click(sender, e);
+            else if (window.OpenPerf) Navigate("murzila://perf");
+            else StatusText.Text = "настройки сохранены";
         }
     }
 
