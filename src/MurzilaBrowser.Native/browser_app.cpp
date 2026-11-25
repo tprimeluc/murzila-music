@@ -19,9 +19,9 @@ int g_loadCount = 0;
 
 void BrowserApp::OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCommandLine> command_line)
 {
-    // Быстрый software-GPU через SwiftShader (стабильнее «голого» GPU здесь).
-    command_line->AppendSwitch("use-angle=swiftshader");
-    command_line->AppendSwitch("enable-unsafe-swiftshader");
+    // Стабильный софтверный рендер: GPU-процесс на этой машине падает.
+    command_line->AppendSwitch("disable-gpu");
+    command_line->AppendSwitch("disable-gpu-compositing");
 }
 
 void BrowserApp::OnContextInitialized()
