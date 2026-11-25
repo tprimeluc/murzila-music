@@ -12,14 +12,20 @@
 #include "include/cef_frame.h"
 
 static HWND g_hwnd = nullptr;
+static HWND g_cefHost = nullptr;
 static HWND g_url = nullptr;
 static const int kBAR = 56;
+
+static LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
 static double g_zoom = 0.0;
 
 enum {
     ID_BACK = 1001, ID_FORWARD, ID_RELOAD, ID_STOP, ID_HOME, ID_GO, ID_SEARCH,
     ID_YOUTUBE, ID_GITHUB, ID_COMPANY, ID_COPY, ID_ZIN, ID_ZOUT, ID_FULL,
-    ID_PRINT, ID_HISTORY, ID_BOOKMARK, ID_NEWTAB, ID_MENU
+    ID_PRINT, ID_HISTORY, ID_BOOKMARK, ID_NEWTAB, ID_MENU, ID_MIN
 };
 
 static void LoadUrl(const std::wstring& input)
@@ -88,6 +94,7 @@ static void ExecuteCommand(HWND hwnd, int id)
     case ID_ZIN: g_zoom += 0.5; if (g_browser) g_browser->GetHost()->SetZoomLevel(g_zoom); break;
     case ID_ZOUT: g_zoom -= 0.5; if (g_browser) g_browser->GetHost()->SetZoomLevel(g_zoom); break;
     case ID_FULL: ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE); break;
+    case ID_MIN: ShowWindow(hwnd, SW_MINIMIZE); break;
     case ID_PRINT: if (g_browser) g_browser->GetHost()->Print(); break;
     case ID_HISTORY: case ID_BOOKMARK: {
         if (!g_browser) break;
@@ -126,18 +133,25 @@ static void ExecuteCommand(HWND hwnd, int id)
 static void LayoutControls(HWND hwnd)
 {
     RECT rc; GetClientRect(hwnd, &rc);
-    struct B { int id; const wchar_t* text; int x; int w; } btns[] = {
-        { ID_BACK, L"<", 6, 34 }, { ID_FORWARD, L">", 44, 34 },
-        { ID_RELOAD, L"R", 82, 34 }, { ID_STOP, L"X", 120, 34 },
-        { ID_HOME, L"H", 158, 34 }, { ID_GO, L"GO", rc.right - 142, 52 },
-        { ID_MENU, L"MENU", rc.right - 82, 76 }
-    };
-    for (const auto& b : btns)
-    {
-        HWND h = GetDlgItem(hwnd, b.id);
-        if (h) MoveWindow(h, b.x, 12, b.w, 32, TRUE);
-    }
-    if (g_url) MoveWindow(g_url, 198, 12, rc.right - 198 - 150, 32, TRUE);
+    if (g_url) MoveWindow(g_url, 224, 12, rc.right - 224 - 215, 32, TRUE);
+    if (g_cefHost) MoveWindow(g_cefHost, 0, kBAR, rc.right, rc.bottom - kBAR, TRUE);
+}
+
+static int HitBarButton(HWND hwnd, int x, int y)
+{
+    if (y < 0 || y > kBAR) return 0;
+    RECT rc; GetClientRect(hwnd, &rc);
+    if (x >= 8 && x < 42) return ID_BACK;
+    if (x >= 46 && x < 80) return ID_FORWARD;
+    if (x >= 84 && x < 118) return ID_RELOAD;
+    if (x >= 122 && x < 156) return ID_STOP;
+    if (x >= 160 && x < 194) return ID_HOME;
+    if (x >= 198 && x < 220) return ID_NEWTAB;
+    if (x >= rc.right - 200 && x < rc.right - 160) return ID_GO;
+    if (x >= rc.right - 155 && x < rc.right - 110) return ID_MIN;
+    if (x >= rc.right - 105 && x < rc.right - 55) return ID_FULL;
+    if (x >= rc.right - 50 && x < rc.right) return 9999; // close
+    return 0;
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -147,6 +161,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_DESTROY: PostQuitMessage(0); return 0;
     case WM_CLOSE: DestroyWindow(hwnd); return 0;
     case WM_SIZE: LayoutControls(hwnd); return 0;
+    case WM_LBUTTONDOWN: {
+        int x = LOWORD(lParam), y = HIWORD(lParam);
+        int id = HitBarButton(hwnd, x, y);
+        if (id == 9999) { DestroyWindow(hwnd); return 0; }
+        if (id) { ExecuteCommand(hwnd, id); return 0; }
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
     case WM_COMMAND: ExecuteCommand(hwnd, LOWORD(wParam)); return 0;
     case WM_KEYDOWN:
         if (wParam == 'L' && (GetKeyState(VK_CONTROL) & 0x8000)) { SetFocus(g_url); return 0; }
@@ -174,6 +195,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT bar{ 0, 0, rc.right, kBAR };
         HBRUSH brush = CreateSolidBrush(RGB(10, 10, 10));
         FillRect(hdc, &bar, brush); DeleteObject(brush);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        struct B { const char* text; int x; int w; } bs[] = {
+            { "<", 8, 34 }, { ">", 46, 34 }, { "R", 84, 34 }, { "X", 122, 34 },
+            { "H", 160, 34 }, { "+", 198, 22 }, { "GO", rc.right - 200, 40 },
+            { "_", rc.right - 155, 45 }, { "[]", rc.right - 105, 50 }, { "X", rc.right - 50, 50 }
+        };
+        for (const auto& b : bs)
+        {
+            RECT r{ b.x, 12, b.x + b.w, 44 };
+            DrawTextA(hdc, b.text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
         EndPaint(hwnd, &ps); return 0;
     }
     default: return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -198,17 +232,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760, nullptr, nullptr, hInstance, nullptr);
     if (!g_hwnd) return 1;
 
-    HWND h;
-    h = CreateWindowW(L"BUTTON", L"<", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_BACK, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L">", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_FORWARD, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"R", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_RELOAD, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"X", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_STOP, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"H", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_HOME, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"GO", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_GO, hInstance, nullptr);
-    CreateWindowW(L"BUTTON", L"MENU", WS_CHILD | WS_VISIBLE, 0, 0, 1, 1, g_hwnd, (HMENU)ID_MENU, hInstance, nullptr);
+    WNDCLASSW hc = {};
+    hc.lpfnWndProc = HostProc; hc.hInstance = hInstance;
+    hc.lpszClassName = L"MurzilaBrowserCefHost";
+    hc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    RegisterClassW(&hc);
+    g_cefHost = CreateWindowW(hc.lpszClassName, L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
+        0, kBAR, 1280, 704, g_hwnd, nullptr, hInstance, nullptr);
+
     g_url = CreateWindowW(L"EDIT", L"murzila://home", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
         0, 0, 1, 1, g_hwnd, (HMENU)2001, hInstance, nullptr);
-    (void)h;
     LayoutControls(g_hwnd);
 
     CefSettings settings;
@@ -221,7 +254,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     CefString(&settings.locales_dir_path).FromWString(exeDir + L"\\locales");
     CefString(&settings.locale).FromASCII("en-US");
 
-    CefRefPtr<BrowserApp> app = new BrowserApp(g_hwnd);
+    CefRefPtr<BrowserApp> app = new BrowserApp(g_cefHost);
     if (!CefInitialize(args, settings, app, nullptr)) return 1;
     CefRunMessageLoop();
     CefShutdown();

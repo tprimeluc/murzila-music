@@ -25,7 +25,7 @@ void BrowserApp::OnContextInitialized()
     GetClientRect(parent_, &rect);
 
     CefWindowInfo info;
-    info.SetAsChild(parent_, CefRect(0, 56, rect.right - rect.left, rect.bottom - rect.top - 56));
+    info.SetAsChild(parent_, CefRect(0, 0, rect.right - rect.left, rect.bottom - rect.top));
 
     CefBrowserSettings settings;
     settings.windowless_frame_rate = 100000;
