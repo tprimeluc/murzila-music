@@ -57,6 +57,16 @@ public partial class MainWindow : Window
         PageTabs.SelectedIndex = 0;
         Loaded += MainWindow_Loaded;
         KeyDown += MainWindow_KeyDown;
+        AddressBox.GotFocus += (_, _) => AddressBox.SelectAll();
+        AddressBox.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (!AddressBox.IsKeyboardFocused)
+            {
+                AddressBox.Focus();
+                AddressBox.SelectAll();
+                e.Handled = true;
+            }
+        };
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -291,21 +301,6 @@ public partial class MainWindow : Window
         _data.AddBookmark(tab.Browser.Address, tab.Title);
         StarIcon.Fill = new SolidColorBrush(Color.FromRgb(0x4f, 0x8c, 0xff));
         StatusText.Text = "закладка добавлена: " + tab.Title;
-    }
-
-    private async void FullHd_Click(object sender, RoutedEventArgs e)
-    {
-        var tab = Current();
-        if (tab == null) return;
-        try
-        {
-            string result = await tab.Browser.EvaluateScriptAsync<string>(
-                "(function(){var v=document.querySelector('video'); if(!v) return 'no-video';" +
-                "try{ if(v.setPlaybackQuality) v.setPlaybackQuality('hd1080'); }catch(err){}" +
-                "return v.videoWidth+'x'+v.videoHeight;})()");
-            StatusText.Text = "FULL HD: " + (string.IsNullOrWhiteSpace(result) ? "включено" : result);
-        }
-        catch { StatusText.Text = "FULL HD недоступно на этой странице"; }
     }
 
     private void Features_Click(object sender, RoutedEventArgs e)

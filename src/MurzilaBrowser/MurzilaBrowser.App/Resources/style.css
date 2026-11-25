@@ -1,16 +1,16 @@
 :root {
-  --bg: #07090d;
-  --panel: #12161f;
-  --card: #171c26;
-  --line: #232b3a;
-  --text: #f5f7fb;
-  --muted: #9aa4b7;
-  --accent: #4f8cff;
+  --bg: #000000;
+  --panel: #0a0a0a;
+  --card: #141414;
+  --line: #2a2a2a;
+  --text: #ffffff;
+  --muted: #a6a6a6;
+  --accent: #ffffff;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: radial-gradient(1000px 700px at 10% -10%, rgba(79,140,255,.12), transparent 58%), var(--bg);
+  background: radial-gradient(1000px 700px at 10% -10%, rgba(255,255,255,.06), transparent 58%), var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
   overflow: hidden;
@@ -23,7 +23,7 @@ body {
 .brand small { display: block; color: var(--accent); font-size: 10px; letter-spacing: .16em; margin-top: 2px; }
 h1 { font-size: 38px; line-height: 1.1; margin: 34px 0 10px; letter-spacing: -1px; }
 h2 { font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 34px 0 14px; }
-p.lead { color: #c9d2df; line-height: 1.65; max-width: 620px; font-size: 14px; }
+p.lead { color: #d0d0d0; line-height: 1.65; max-width: 620px; font-size: 14px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
 a.card {
   display: block; text-decoration: none; color: inherit; padding: 18px;

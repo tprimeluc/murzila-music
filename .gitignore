@@ -10,3 +10,8 @@ artifacts/
 .vs/
 .git/
 *.user
+
+# CEF SDK (downloaded, large)
+src/MurzilaBrowser.Native/cef/
+src/MurzilaBrowser.Native/*.exe
+src/MurzilaBrowser.Native/*.obj
