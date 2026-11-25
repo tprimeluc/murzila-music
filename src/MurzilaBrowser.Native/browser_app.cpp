@@ -7,9 +7,9 @@
 
 void BrowserApp::OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCommandLine> command_line)
 {
-    // Максимальная производительность: без V-sync и без лимита кадров.
-    command_line->AppendSwitch("disable-gpu-vsync");
-    command_line->AppendSwitch("disable-frame-rate-limit");
+    // Пока GPU-процесс нестабилен на этой машине — безопасный софтверный рендер.
+    command_line->AppendSwitch("disable-gpu");
+    command_line->AppendSwitch("disable-gpu-compositing");
 }
 
 void BrowserApp::OnContextInitialized()
@@ -24,7 +24,7 @@ void BrowserApp::OnContextInitialized()
     settings.windowless_frame_rate = 100000;
 
     CefRefPtr<BrowserClient> client = new BrowserClient();
-    CefBrowserHost::CreateBrowser(info, client, "murzila://home", settings, nullptr, nullptr);
+    CefBrowserHost::CreateBrowser(info, client, "https://example.com", settings, nullptr, nullptr);
 }
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)

@@ -15,3 +15,5 @@ artifacts/
 src/MurzilaBrowser.Native/cef/
 src/MurzilaBrowser.Native/*.exe
 src/MurzilaBrowser.Native/*.obj
+
+src/MurzilaBrowser.Native/build/

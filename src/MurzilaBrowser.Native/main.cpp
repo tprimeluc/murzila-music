@@ -1,52 +1,70 @@
-// Murzila Browser Native — каркас перехода на C++.
-// Сейчас: чистое Win32-окно. Следующий шаг: подключить CEF SDK
-// (include/libcef + libcef_dll_wrapper) и заменить этим окном CEF-хост.
-#include <windows.h>
+// Murzila Browser Native — CEF-хост (Blink + V8).
+// Собирается через CMakeLists.txt после fetch_cef.ps1.
+#include "browser_app.h"
 
-static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
+#include <windows.h>
+#include "include/cef_app.h"
+
+static HWND g_hwnd = nullptr;
+
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-        FillRect(hdc, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
-        const char* text = "Murzila Browser Native - C++ shell (CEF integration next)";
-        DrawTextA(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        EndPaint(hwnd, &ps);
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
         return 0;
-    }
     default:
-        return DefWindowProcA(hwnd, msg, wParam, lParam);
+        return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
-    WNDCLASSA wc = {};
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
+{
+    WNDCLASSW wc = {};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
-    wc.lpszClassName = "MurzilaBrowserNative";
+    wc.lpszClassName = L"MurzilaBrowserNative";
     wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    RegisterClassA(&wc);
+    RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowA(
+    g_hwnd = CreateWindowW(
         wc.lpszClassName,
-        "Murzila Browser Native",
+        L"Murzila Browser",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760,
         nullptr, nullptr, hInstance, nullptr);
-    if (!hwnd) return 1;
+    if (!g_hwnd) return 1;
 
-    ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd);
+    ShowWindow(g_hwnd, nCmdShow);
+    UpdateWindow(g_hwnd);
 
-    MSG msg = {};
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    CefMainArgs args(hInstance);
+    CefSettings settings;
+    settings.windowless_rendering_enabled = false;
+    wchar_t exePath[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    std::wstring exeDir(exePath);
+    exeDir = exeDir.substr(0, exeDir.find_last_of(L"\\/"));
+    CefString(&settings.resources_dir_path).FromWString(exeDir);
+    CefString(&settings.locales_dir_path).FromWString(exeDir + L"\\locales");
+    CefString(&settings.locale).FromASCII("en-US");
+
+    CefRefPtr<BrowserApp> app = new BrowserApp(g_hwnd);
+    int subprocessResult = CefExecuteProcess(args, app, nullptr);
+    if (subprocessResult >= 0) return subprocessResult;
+
+    if (!CefInitialize(args, settings, app, nullptr))
+    {
+        MessageBoxW(g_hwnd, L"CEF initialization failed", L"Murzila Browser", MB_ICONERROR);
+        return 1;
     }
-    return (int)msg.wParam;
+
+    CefRunMessageLoop();
+
+    CefShutdown();
+    return 0;
 }
