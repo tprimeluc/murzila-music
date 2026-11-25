@@ -24,8 +24,14 @@ public sealed class FaviconHandler : IDisplayHandler
             {
                 try
                 {
-                    string service = "https://www.google.com/s2/favicons?domain=" + Uri.EscapeDataString(host) + "&sz=32";
-                    byte[] bytes = await Http.GetByteArrayAsync(service);
+                    byte[]? bytes = null;
+                    try
+                    {
+                        bytes = await Http.GetByteArrayAsync("https://" + host + "/favicon.ico");
+                    }
+                    catch { }
+                    if (bytes is null || bytes.Length < 64)
+                        bytes = await Http.GetByteArrayAsync("https://www.google.com/s2/favicons?domain=" + Uri.EscapeDataString(host) + "&sz=32");
                     using var stream = new MemoryStream(bytes);
                     var image = new BitmapImage();
                     image.BeginInit();
