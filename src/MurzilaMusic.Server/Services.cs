@@ -25,6 +25,8 @@ public sealed record SetSharedRequest(bool Allowed);
 public sealed record TwoFactorVerifyRequest(string Email, string Code);
 public sealed record ConfirmTotpRequest(string Code);
 public sealed record SetTwoFactorMethodRequest(string Method);
+public sealed record IcqAddContactRequest(string Email, string Nick, string Group);
+public sealed record IcqSendRequest(string To, string Text);
 public sealed record Disable2FaRequest(string Password);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeEmailCodeRequest(string NewEmail);
@@ -720,6 +722,21 @@ public sealed class Db
                 AppId TEXT NOT NULL,
                 CreatedAt TEXT NOT NULL,
                 ExpiresAt TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS IcqContacts (
+                UserId TEXT NOT NULL,
+                Email TEXT NOT NULL COLLATE NOCASE,
+                Nick TEXT NOT NULL,
+                Grp TEXT NOT NULL DEFAULT 'Друзья',
+                PRIMARY KEY (UserId, Email)
+            );
+            CREATE TABLE IF NOT EXISTS IcqMessages (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                FromUser TEXT NOT NULL,
+                ToUser TEXT NOT NULL,
+                Text TEXT NOT NULL,
+                SentAt TEXT NOT NULL,
+                IsRead INTEGER NOT NULL DEFAULT 0
             );
             """;
         await command.ExecuteNonQueryAsync();

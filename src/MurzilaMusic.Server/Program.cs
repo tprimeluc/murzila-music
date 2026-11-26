@@ -1010,6 +1010,137 @@ app.MapPost("/api/account/2fa/method", async (SetTwoFactorMethodRequest request,
     return Results.Ok(new { method });
 });
 
+// ---------- ICQ-клон: свой протокол поверх HTTPS, старый интерфейс ----------
+
+app.MapGet("/api/icq/me", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    return Results.Ok(new { uin = user.Id, email = user.Email, nick = user.Name });
+});
+
+app.MapGet("/api/icq/contacts", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var list = new List<object>();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = """
+        SELECT c.Email, c.Nick, c.Grp, u.Id,
+               EXISTS(SELECT 1 FROM Sessions s WHERE s.UserId=u.Id AND s.ExpiresAt > $now AND s.IsGuest=0)
+        FROM IcqContacts c LEFT JOIN Users u ON u.Email=c.Email
+        WHERE c.UserId=$me ORDER BY c.Grp, c.Nick
+        """;
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        list.Add(new { email = reader.GetString(0), nick = reader.GetString(1), group = reader.GetString(2), userId = reader.IsDBNull(3) ? "" : reader.GetString(3), online = reader.GetInt32(4) != 0 });
+    return Results.Ok(list);
+});
+
+app.MapPost("/api/icq/contacts", async (IcqAddContactRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string email = (request.Email ?? "").Trim().ToLowerInvariant();
+    if (string.IsNullOrWhiteSpace(email)) return Results.BadRequest(new { error = "Введи email." });
+    var other = await FindUserByEmailAsync(database, email);
+    if (other is null) return Results.BadRequest(new { error = "Такого аккаунта Murzila нет." });
+    string nick = string.IsNullOrWhiteSpace(request.Nick) ? other.Name : request.Nick.Trim();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "INSERT OR REPLACE INTO IcqContacts (UserId, Email, Nick, Grp) VALUES ($me,$email,$nick,$grp)";
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$email", email);
+    command.Parameters.AddWithValue("$nick", nick);
+    command.Parameters.AddWithValue("$grp", string.IsNullOrWhiteSpace(request.Group) ? "Друзья" : request.Group.Trim());
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { email, nick });
+});
+
+app.MapDelete("/api/icq/contacts/{email}", async (string email, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "DELETE FROM IcqContacts WHERE UserId=$me AND Email=$email";
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$email", email.ToLowerInvariant());
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { deleted = true });
+});
+
+app.MapGet("/api/icq/messages", async (int since, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var list = new List<object>();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT Id, FromUser, Text, SentAt FROM IcqMessages WHERE ToUser=$me AND Id>$since ORDER BY Id";
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$since", since);
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        list.Add(new { id = reader.GetInt32(0), from = reader.GetString(1), text = reader.GetString(2), sentAt = reader.GetString(3) });
+    await reader.CloseAsync();
+    await using var mark = connection.CreateCommand();
+    mark.CommandText = "UPDATE IcqMessages SET IsRead=1 WHERE ToUser=$me AND Id>$since";
+    mark.Parameters.AddWithValue("$me", user.Id);
+    mark.Parameters.AddWithValue("$since", since);
+    await mark.ExecuteNonQueryAsync();
+    return Results.Ok(list);
+});
+
+app.MapGet("/api/icq/history", async (string with, int limit, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var other = await FindUserByEmailAsync(database, with);
+    if (other is null) return Results.Ok(new List<object>());
+    var list = new List<object>();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = """
+        SELECT Id, FromUser, Text, SentAt FROM IcqMessages
+        WHERE (FromUser=$me AND ToUser=$other) OR (FromUser=$other AND ToUser=$me)
+        ORDER BY Id DESC LIMIT $limit
+        """;
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$other", other.Id);
+    command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 500));
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        list.Add(new { id = reader.GetInt32(0), from = reader.GetString(1), text = reader.GetString(2), sentAt = reader.GetString(3) });
+    list.Reverse();
+    return Results.Ok(list);
+});
+
+app.MapPost("/api/icq/messages", async (IcqSendRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string to = (request.To ?? "").Trim().ToLowerInvariant();
+    string text = (request.Text ?? "").Trim();
+    if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(text))
+        return Results.BadRequest(new { error = "Пустое сообщение." });
+    var other = await FindUserByEmailAsync(database, to);
+    if (other is null) return Results.BadRequest(new { error = "Контакт не найден." });
+    string sent = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "INSERT INTO IcqMessages (FromUser,ToUser,Text,SentAt) VALUES ($from,$to,$text,$sent); SELECT last_insert_rowid()";
+    command.Parameters.AddWithValue("$from", user.Id);
+    command.Parameters.AddWithValue("$to", other.Id);
+    command.Parameters.AddWithValue("$text", text);
+    command.Parameters.AddWithValue("$sent", sent);
+    long id = Convert.ToInt64(await command.ExecuteScalarAsync());
+    return Results.Ok(new { id, sentAt = sent });
+});
+
 // ---------- веб-плеер: сессия в cookie, /api/web/* ----------
 
 app.MapGet("/api/web/me", async (HttpContext context, Db database) =>
