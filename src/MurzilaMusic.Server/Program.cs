@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http;
@@ -590,6 +591,55 @@ app.MapPost("/api/music/recognize", async (HttpContext context, Db database, Api
     // Внешний провайдер для любых песен (нужен ключ).
     string provider = Environment.GetEnvironmentVariable("MURZILA_RECOGNIZE_PROVIDER") ?? "";
     string apiKey = Environment.GetEnvironmentVariable("MURZILA_RECOGNIZE_KEY") ?? "";
+    if (provider.Equals("acoustid", StringComparison.OrdinalIgnoreCase))
+    {
+        string acoustKey = Environment.GetEnvironmentVariable("MURZILA_ACOUSTID_KEY") ?? "";
+        if (!string.IsNullOrWhiteSpace(acoustKey))
+        {
+            try
+            {
+                string wavPath = Path.Combine(Path.GetTempPath(), "murzila-mic-" + Guid.NewGuid().ToString("N") + ".wav");
+                await File.WriteAllBytesAsync(wavPath, MusicRecognizer.ToWav(pcm, sampleRate));
+                string fpcalcExe = OperatingSystem.IsWindows()
+                    ? Path.Combine(AppContext.BaseDirectory, "fpcalc.exe") : "fpcalc";
+                var psi = new ProcessStartInfo(fpcalcExe)
+                {
+                    ArgumentList = { "-json", "-length", "12", wavPath },
+                    RedirectStandardOutput = true, RedirectStandardError = true,
+                    UseShellExecute = false, CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                string fpJson = proc is null ? "" : await proc.StandardOutput.ReadToEndAsync();
+                if (proc is not null) await proc.WaitForExitAsync();
+                try { File.Delete(wavPath); } catch { }
+                using var fpDoc = JsonDocument.Parse(fpJson);
+                double duration = fpDoc.RootElement.GetProperty("duration").GetDouble();
+                string fingerprint = fpDoc.RootElement.GetProperty("fingerprint").GetString() ?? "";
+                string lookup = "https://api.acoustid.org/v2/lookup?client=" + Uri.EscapeDataString(acoustKey)
+                    + "&duration=" + duration.ToString(CultureInfo.InvariantCulture)
+                    + "&fingerprint=" + Uri.EscapeDataString(fingerprint)
+                    + "&meta=recordings+artists";
+                using var lookupJson = JsonDocument.Parse(await uiTranslateClient.GetStringAsync(lookup));
+                var results = lookupJson.RootElement.GetProperty("results");
+                if (results.GetArrayLength() > 0)
+                {
+                    var first = results[0];
+                    if (first.TryGetProperty("recordings", out var recordings) && recordings.GetArrayLength() > 0)
+                    {
+                        var rec = recordings[0];
+                        string title = rec.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+                        string artist = "";
+                        if (rec.TryGetProperty("artists", out var artists) && artists.GetArrayLength() > 0
+                            && artists[0].TryGetProperty("name", out var a)) artist = a.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(title))
+                            return Results.Json(new { found = true, title, artist, source = "acoustid" });
+                    }
+                }
+            }
+            catch { }
+        }
+    }
+
     if (provider.Equals("audd", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(apiKey))
     {
         try

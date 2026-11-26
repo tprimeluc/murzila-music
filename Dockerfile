@@ -13,6 +13,9 @@ ENV PORT=10000
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000
 ENV MURZILA_CLOUD_DIR=/app/data/cloud
 ENV MURZILA_DB=/app/data/server.db
+# Бесплатное распознавание через AcoustID (без карты): fpcalc + ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libchromaprint-tools ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /app/data/cloud
 EXPOSE 10000
 ENTRYPOINT ["dotnet", "MurzilaMusic.Server.dll"]
