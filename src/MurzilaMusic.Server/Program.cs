@@ -1012,11 +1012,39 @@ app.MapPost("/api/account/2fa/method", async (SetTwoFactorMethodRequest request,
 
 // ---------- ICQ-клон: свой протокол поверх HTTPS, старый интерфейс ----------
 
+static string IcqUin(string id)
+{
+    byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(id));
+    uint value = BitConverter.ToUInt32(hash, 0);
+    return (100000000 + value % 900000000).ToString(CultureInfo.InvariantCulture);
+}
+
+app.MapGet("/api/icq/search", async (string q, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string query = (q ?? "").Trim().ToLowerInvariant();
+    if (query.Length < 2) return Results.Ok(new List<object>());
+    var list = new List<object>();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT Id, Email, Name FROM Users WHERE Id<>$me AND (Email LIKE $q OR Name LIKE $q) LIMIT 30";
+    command.Parameters.AddWithValue("$me", user.Id);
+    command.Parameters.AddWithValue("$q", "%" + query + "%");
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        string id = reader.GetString(0);
+        list.Add(new { uin = IcqUin(id), email = reader.GetString(1), nick = reader.GetString(2) });
+    }
+    return Results.Ok(list);
+});
+
 app.MapGet("/api/icq/me", async (HttpContext context, Db database) =>
 {
     var user = await FindUserAsync(database, context);
     if (user is null) return Results.Unauthorized();
-    return Results.Ok(new { uin = user.Id, email = user.Email, nick = user.Name });
+    return Results.Ok(new { uin = IcqUin(user.Id), email = user.Email, nick = user.Name });
 });
 
 app.MapGet("/api/icq/contacts", async (HttpContext context, Db database) =>
@@ -1036,7 +1064,10 @@ app.MapGet("/api/icq/contacts", async (HttpContext context, Db database) =>
     command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
     await using var reader = await command.ExecuteReaderAsync();
     while (await reader.ReadAsync())
-        list.Add(new { email = reader.GetString(0), nick = reader.GetString(1), group = reader.GetString(2), userId = reader.IsDBNull(3) ? "" : reader.GetString(3), online = reader.GetInt32(4) != 0 });
+    {
+        string uid = reader.IsDBNull(3) ? "" : reader.GetString(3);
+        list.Add(new { email = reader.GetString(0), nick = reader.GetString(1), group = reader.GetString(2), uin = uid.Length == 0 ? "" : IcqUin(uid), userId = uid, online = reader.GetInt32(4) != 0 });
+    }
     return Results.Ok(list);
 });
 
