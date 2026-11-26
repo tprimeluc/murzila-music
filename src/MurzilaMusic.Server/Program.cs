@@ -100,18 +100,18 @@ app.MapGet("/", (HttpContext context, IWebHostEnvironment env) =>
         : host.Contains("mursik-corp", StringComparison.OrdinalIgnoreCase)
             ? "/landing/index.html"
             : "/player/index.html";
-    return HtmlPage(env, path);
+    return HtmlPage(context, env, path);
 });
 
-app.MapGet("/player", (IWebHostEnvironment env) => HtmlPage(env, "/player/index.html"));
+app.MapGet("/player", (HttpContext context, IWebHostEnvironment env) => HtmlPage(context, env, "/player/index.html"));
 
-app.MapGet("/api/token", (IWebHostEnvironment env) => HtmlPage(env, "/apitoken/index.html"));
+app.MapGet("/api/token", (HttpContext context, IWebHostEnvironment env) => HtmlPage(context, env, "/apitoken/index.html"));
 
 app.MapGet("/api", () => Results.Redirect("/api/token"));
 
-app.MapGet("/download", (IWebHostEnvironment env) => HtmlPage(env, "/download/index.html"));
+app.MapGet("/download", (HttpContext context, IWebHostEnvironment env) => HtmlPage(context, env, "/download/index.html"));
 
-app.MapGet("/files", (IWebHostEnvironment env) => HtmlPage(env, "/filesharing/index.html"));
+app.MapGet("/files", (HttpContext context, IWebHostEnvironment env) => HtmlPage(context, env, "/filesharing/index.html"));
 
 app.MapGet("/api/info", (YooKassaClient payment, SmtpMailer mail, GoogleAuth googleAuth,
     SmsRuSender smsSender, StoreService shop) => Results.Json(new
@@ -158,6 +158,25 @@ app.MapGet("/api/apps", async (HttpContext context, Db database, ApiService api)
     if (await IsGuestTokenAsync(database, ReadToken(context)))
         return Results.Json(new { error = "Гостевой режим не показывает API-ключи. Войди в аккаунт." }, statusCode: 403);
     return Results.Ok(await api.ListAppsAsync(user.Id));
+});
+
+app.MapDelete("/api/apps/{id}", async (string id, HttpContext context, Db database, ApiService api) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    return await api.DeleteAppAsync(user.Id, id)
+        ? Results.Ok(new { deleted = true })
+        : Results.NotFound(new { error = "Приложение не найдено." });
+});
+
+app.MapPost("/api/apps/{id}/reset", async (string id, HttpContext context, Db database, ApiService api) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var result = await api.ResetAppAsync(user.Id, id);
+    return result is null
+        ? Results.NotFound(new { error = "Приложение не найдено." })
+        : Results.Ok(new { apiKey = result.Value.ApiKey, token = result.Value.Token });
 });
 
 app.MapPost("/api/token", async (CreateApiTokenRequest request) =>
@@ -723,7 +742,39 @@ app.MapPost("/api/auth/login/2fa/verify", async (TwoFactorVerifyRequest request,
     var account = await FindUserByEmailAsync(database, email);
     if (account is null) return Results.BadRequest(new { error = "Аккаунт не найден." });
 
+    string method = "email", secret = "", backupStored = "";
+    await using (var cfg = database.Open())
+    await using (var cfgCmd = cfg.CreateCommand())
+    {
+        cfgCmd.CommandText = "SELECT TwoFactorMethod, TotpSecret, BackupCodes FROM Users WHERE Id=$id";
+        cfgCmd.Parameters.AddWithValue("$id", account.Id);
+        await using var cfgReader = await cfgCmd.ExecuteReaderAsync();
+        if (await cfgReader.ReadAsync())
+        {
+            if (!cfgReader.IsDBNull(0)) method = cfgReader.GetString(0);
+            if (!cfgReader.IsDBNull(1)) secret = cfgReader.GetString(1);
+            if (!cfgReader.IsDBNull(2)) backupStored = cfgReader.GetString(2);
+        }
+    }
+
     bool valid = false;
+    if (method == "totp" && !string.IsNullOrWhiteSpace(secret))
+        valid = Totp.Verify(secret, code);
+    if (!valid && code.Length == 10)
+    {
+        var codes = BackupCodeList(backupStored);
+        if (codes.Contains(code.ToLowerInvariant()))
+        {
+            codes.Remove(code.ToLowerInvariant());
+            valid = true;
+            await using var conn = database.Open();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE Users SET BackupCodes=$codes WHERE Id=$id";
+            cmd.Parameters.AddWithValue("$codes", string.Join(",", codes));
+            cmd.Parameters.AddWithValue("$id", account.Id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
     await using (var connection = database.Open())
     {
         await using var command = connection.CreateCommand();
@@ -817,6 +868,98 @@ app.MapPost("/api/account/2fa/disable", async (Disable2FaRequest request, HttpCo
     return Results.Ok(new { enabled = false });
 });
 
+// ---------- расширенная 2FA: TOTP, резервные коды, способ подтверждения ----------
+
+static string NewBackupCodes() => string.Join(",", Enumerable.Range(0, 8)
+    .Select(_ => Convert.ToHexString(RandomNumberGenerator.GetBytes(5)).ToLowerInvariant()));
+
+static List<string> BackupCodeList(string? stored) => string.IsNullOrWhiteSpace(stored)
+    ? new List<string>()
+    : stored.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+app.MapGet("/api/account/2fa/status", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT TwoFactorEnabled, TwoFactorMethod, BackupCodes, TotpSecret FROM Users WHERE Id=$id";
+    command.Parameters.AddWithValue("$id", user.Id);
+    await using var reader = await command.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return Results.Unauthorized();
+    return Results.Ok(new
+    {
+        enabled = reader.GetInt32(0) != 0,
+        method = reader.IsDBNull(1) ? "email" : reader.GetString(1),
+        backupCount = reader.IsDBNull(2) ? 0 : BackupCodeList(reader.GetString(2)).Count,
+        totp = !reader.IsDBNull(3)
+    });
+});
+
+app.MapPost("/api/account/2fa/totp/setup", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string secret = Totp.NewSecret();
+    string codes = NewBackupCodes();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "UPDATE Users SET TotpSecret=$secret, BackupCodes=$codes WHERE Id=$id";
+    command.Parameters.AddWithValue("$secret", secret);
+    command.Parameters.AddWithValue("$codes", codes);
+    command.Parameters.AddWithValue("$id", user.Id);
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { secret, otpauth = Totp.OtpAuthUri(user.Email, secret), backupCodes = codes.Split(',') });
+});
+
+app.MapPost("/api/account/2fa/totp/confirm", async (ConfirmTotpRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var read = connection.CreateCommand();
+    read.CommandText = "SELECT TotpSecret FROM Users WHERE Id=$id";
+    read.Parameters.AddWithValue("$id", user.Id);
+    string? secret = await read.ExecuteScalarAsync() as string;
+    if (string.IsNullOrWhiteSpace(secret) || !Totp.Verify(secret, request.Code ?? ""))
+        return Results.BadRequest(new { error = "Неверный код из Authenticator." });
+    await using var upd = connection.CreateCommand();
+    upd.CommandText = "UPDATE Users SET TwoFactorEnabled=1, TwoFactorMethod='totp' WHERE Id=$id";
+    upd.Parameters.AddWithValue("$id", user.Id);
+    await upd.ExecuteNonQueryAsync();
+    return Results.Ok(new { enabled = true, method = "totp" });
+});
+
+app.MapPost("/api/account/2fa/backup/regenerate", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string codes = NewBackupCodes();
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "UPDATE Users SET BackupCodes=$codes WHERE Id=$id";
+    command.Parameters.AddWithValue("$codes", codes);
+    command.Parameters.AddWithValue("$id", user.Id);
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { backupCodes = codes.Split(',') });
+});
+
+app.MapPost("/api/account/2fa/method", async (SetTwoFactorMethodRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string method = (request.Method ?? "email").Trim().ToLowerInvariant();
+    if (!new[] { "email", "totp", "push" }.Contains(method))
+        return Results.BadRequest(new { error = "Неизвестный способ 2FA." });
+    await using var connection = database.Open();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "UPDATE Users SET TwoFactorMethod=$method WHERE Id=$id";
+    command.Parameters.AddWithValue("$method", method);
+    command.Parameters.AddWithValue("$id", user.Id);
+    await command.ExecuteNonQueryAsync();
+    return Results.Ok(new { method });
+});
+
 // ---------- веб-плеер: сессия в cookie, /api/web/* ----------
 
 app.MapGet("/api/web/me", async (HttpContext context, Db database) =>
@@ -863,13 +1006,16 @@ app.MapPost("/api/web/guest", async (HttpContext context, Db database) =>
 
     string token = Db.NewToken();
     string expires = DateTime.UtcNow.AddHours(5).ToString("O", CultureInfo.InvariantCulture);
+    string device = context.Request.Headers["X-Murzila-Device"].ToString() ?? context.Connection.RemoteIpAddress?.ToString() ?? "";
+    string deviceHash = Db.TokenHash(device);
     await using (var connection = database.Open())
     await using (var command = connection.CreateCommand())
     {
-        command.CommandText = "INSERT INTO Sessions (TokenHash, UserId, ExpiresAt, IsGuest) VALUES ($token, $user, $expires, 1)";
+        command.CommandText = "INSERT INTO Sessions (TokenHash, UserId, ExpiresAt, IsGuest, DeviceHash) VALUES ($token, $user, $expires, 1, $device)";
         command.Parameters.AddWithValue("$token", Db.TokenHash(token));
         command.Parameters.AddWithValue("$user", user.Id);
         command.Parameters.AddWithValue("$expires", expires);
+        command.Parameters.AddWithValue("$device", deviceHash);
         await command.ExecuteNonQueryAsync();
     }
     SignInCookie(context, token);
@@ -880,9 +1026,22 @@ app.MapGet("/api/web/session-token", async (HttpContext context, Db database) =>
 {
     var user = await FindUserAsync(database, context);
     string? token = ReadToken(context);
-    return user is null || string.IsNullOrWhiteSpace(token)
-        ? Results.Json(new { error = "Нет сессии." }, statusCode: 401)
-        : Results.Ok(new { token, guest = await IsGuestTokenAsync(database, token) });
+    if (user is null || string.IsNullOrWhiteSpace(token))
+        return Results.Json(new { error = "Нет сессии." }, statusCode: 401);
+    bool guest = await IsGuestTokenAsync(database, token);
+    if (guest)
+    {
+        string device = context.Request.Headers["X-Murzila-Device"].ToString() ?? context.Connection.RemoteIpAddress?.ToString() ?? "";
+        string hash = Db.TokenHash(device);
+        await using var conn = database.Open();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT DeviceHash FROM Sessions WHERE TokenHash=$token";
+        cmd.Parameters.AddWithValue("$token", Db.TokenHash(token));
+        string? stored = await cmd.ExecuteScalarAsync() as string;
+        if (!string.IsNullOrWhiteSpace(stored) && stored != hash)
+            return Results.Json(new { error = "Сессия привязана к другому устройству." }, statusCode: 401);
+    }
+    return Results.Ok(new { token, guest });
 });
 
 app.MapPost("/api/web/logout", async (HttpContext context, Db database) =>
@@ -2095,10 +2254,12 @@ static UserDto ToUserDto(UserRow user) => new()
 /// Отдаёт страницу из wwwroot через провайдер статичных файлов: одинаково работает
 /// при запуске из исходников (static web assets) и из опубликованной папки.
 /// </summary>
-static IResult HtmlPage(IWebHostEnvironment env, string path)
+static IResult HtmlPage(HttpContext context, IWebHostEnvironment env, string path)
 {
     var file = env.WebRootFileProvider.GetFileInfo(path);
     if (!file.Exists) return Results.NotFound("Страница не найдена: " + path);
+    context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+    context.Response.Headers.Pragma = "no-cache";
     return Results.Stream(file.CreateReadStream(), "text/html; charset=utf-8");
 }
 

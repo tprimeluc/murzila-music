@@ -125,6 +125,47 @@ public sealed class ApiService
         return Convert.ToString(result);
     }
 
+    public async Task<bool> DeleteAppAsync(string userId, string appId)
+    {
+        await using var connection = _db.Open();
+        await using var owner = connection.CreateCommand();
+        owner.CommandText = "SELECT Id FROM ApiApps WHERE Id=$id AND UserId=$user";
+        owner.Parameters.AddWithValue("$id", appId);
+        owner.Parameters.AddWithValue("$user", userId);
+        if (await owner.ExecuteScalarAsync() is null) return false;
+        await using var delTokens = connection.CreateCommand();
+        delTokens.CommandText = "DELETE FROM ApiTokens WHERE AppId=$id";
+        delTokens.Parameters.AddWithValue("$id", appId);
+        await delTokens.ExecuteNonQueryAsync();
+        await using var delApp = connection.CreateCommand();
+        delApp.CommandText = "DELETE FROM ApiApps WHERE Id=$id";
+        delApp.Parameters.AddWithValue("$id", appId);
+        await delApp.ExecuteNonQueryAsync();
+        return true;
+    }
+
+    public async Task<(string ApiKey, ApiTokenDto Token)?> ResetAppAsync(string userId, string appId)
+    {
+        await using var connection = _db.Open();
+        await using var owner = connection.CreateCommand();
+        owner.CommandText = "SELECT Id FROM ApiApps WHERE Id=$id AND UserId=$user";
+        owner.Parameters.AddWithValue("$id", appId);
+        owner.Parameters.AddWithValue("$user", userId);
+        if (await owner.ExecuteScalarAsync() is null) return null;
+        string apiKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        await using var upd = connection.CreateCommand();
+        upd.CommandText = "UPDATE ApiApps SET ApiKeyHash=$hash WHERE Id=$id";
+        upd.Parameters.AddWithValue("$hash", ApiKeyHash(apiKey));
+        upd.Parameters.AddWithValue("$id", appId);
+        await upd.ExecuteNonQueryAsync();
+        await using var del = connection.CreateCommand();
+        del.CommandText = "DELETE FROM ApiTokens WHERE AppId=$id";
+        del.Parameters.AddWithValue("$id", appId);
+        await del.ExecuteNonQueryAsync();
+        var token = await IssueTokenAsync(apiKey);
+        return token is null ? null : (apiKey, token);
+    }
+
     /// <summary>Приложения, созданные конкретным аккаунтом (для страницы /api/token).</summary>
     public async Task<List<ApiAppDto>> ListAppsAsync(string userId)
     {

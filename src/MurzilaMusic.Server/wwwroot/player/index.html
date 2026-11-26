@@ -512,6 +512,23 @@
       <button class="submit" id="tfaConfirm" type="button">Подтвердить включение</button>
     </div>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <label for="tfaMethod">Способ подтверждения</label>
+      <select id="tfaMethod" style="width:100%;height:34px;border-radius:9px;background:var(--card);color:var(--text);border:1px solid var(--line)">
+        <option value="email">Код по электронной почте</option>
+        <option value="totp">Google / Microsoft Authenticator</option>
+        <option value="push">Push-уведомление</option>
+      </select>
+      <button class="btn" id="tfaMethodSave" type="button" style="width:100%;margin-top:8px">Сохранить способ</button>
+      <button class="btn" id="tfaTotpSetup" type="button" style="width:100%;margin-top:8px">Настроить Authenticator</button>
+      <div id="tfaTotpBox" class="codebox hidden">
+        <div class="codebox-cap">Секрет для приложения</div>
+        <div id="tfaTotpSecret" class="codebox-value" style="letter-spacing:1px;font-size:13px"></div>
+        <div id="tfaBackup" class="hint" style="font-size:11px"></div>
+        <button class="btn small" id="tfaTotpConfirm" type="button" style="margin-top:8px">Проверить код из приложения</button>
+      </div>
+      <button class="btn" id="tfaBackupNew" type="button" style="width:100%;margin-top:8px">Новые резервные коды</button>
+    </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
       <label for="tfaPassword">Выключить 2FA — введи пароль</label>
       <input id="tfaPassword" type="password" placeholder="Текущий пароль">
       <button class="btn" id="tfaDisable" type="button" style="width:100%">Выключить 2FA</button>
@@ -619,6 +636,10 @@
   const LS_FAV = 'murzila_fav_v1';
   const LS_EQ = 'murzila_eq_v1';
   const LS_GUEST = 'murzila_guest_until_v1';
+  const LS_GUEST_LOCK = 'murzila_guest_locked_v1';
+  const LS_DEVICE = 'murzila_device_v1';
+  let deviceId = localStorage.getItem(LS_DEVICE);
+  if (!deviceId) { deviceId = String(Date.now()) + '-' + Math.random().toString(36).slice(2); localStorage.setItem(LS_DEVICE, deviceId); }
   const LS_LANG = 'murzila_lang_v1';
   const LS_I18N = 'murzila_i18n_v1';
   const TITLE_RU = document.title;
@@ -1000,6 +1021,7 @@
   async function api(path, opts = {}) {
     try {
       const headers = new Headers(opts.headers || {});
+      headers.set('X-Murzila-Device', deviceId);
       // Bearer всегда важнее старой гостевой cookie — иначе сервер считает гостем.
       if (state.token && !headers.has('Authorization'))
         headers.set('Authorization', 'Bearer ' + state.token);
@@ -1960,7 +1982,7 @@
     const token = data && data.token;
     if (!token) { const m = $('authMsg'); m.className = 'msg'; m.textContent = 'Не получил токен — попробуй ещё раз.'; return; }
     stopGuestTimer();
-    localStorage.removeItem(LS_GUEST);
+    localStorage.removeItem(LS_GUEST); localStorage.removeItem(LS_GUEST_LOCK);
     state.guest = false; state.token = token; state.user = (data && data.user) || null;
     state.tracks = []; state.view = []; state.index = -1; state.currentTrack = null;
     audio.pause(); audio.removeAttribute('src'); setPlaying(false);
@@ -2136,10 +2158,45 @@
   $('authCodeCopy').addEventListener('click', () => copyTestCode($('authCodeValue').textContent, $('authCodeCopy')));
   $('authForgotCopy').addEventListener('click', () => copyTestCode($('authForgotCodeValue').textContent, $('authForgotCopy')));
 
-  $('tfaBtn').addEventListener('click', () => {
+  $('tfaBtn').addEventListener('click', async () => {
     if (!state.user) { openAuth(); toast('Сначала войди в аккаунт'); return; }
     $('tfaMsg').textContent = '';
     $('tfaModal').classList.remove('hidden');
+    const st = await api('/api/account/2fa/status');
+    if (st.ok && st.data) {
+      $('tfaMethod').value = st.data.method || 'email';
+      if (st.data.method === 'push' && 'Notification' in window && Notification.permission === 'default')
+        Notification.requestPermission();
+    }
+  });
+  $('tfaMethodSave').addEventListener('click', async () => {
+    const r = await api('/api/account/2fa/method', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: $('tfaMethod').value })
+    });
+    $('tfaMsg').className = 'msg' + (r.ok ? ' ok' : '');
+    $('tfaMsg').textContent = r.ok ? 'Способ сохранён.' : ((r.data && r.data.error) || 'Ошибка');
+  });
+  $('tfaTotpSetup').addEventListener('click', async () => {
+    const r = await api('/api/account/2fa/totp/setup', { method: 'POST' });
+    if (!r.ok) { $('tfaMsg').textContent = (r.data && r.data.error) || 'Не удалось создать секрет'; return; }
+    $('tfaTotpBox').classList.remove('hidden');
+    $('tfaTotpSecret').textContent = r.data.secret;
+    $('tfaBackup').textContent = 'Резервные коды: ' + r.data.backupCodes.join(' ');
+    if (r.data.otpauth) $('tfaTotpSecret').setAttribute('title', r.data.otpauth);
+  });
+  $('tfaTotpConfirm').addEventListener('click', async () => {
+    const code = prompt('Код из Google/Microsoft Authenticator (6 цифр):');
+    if (!code) return;
+    const r = await api('/api/account/2fa/totp/confirm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
+    });
+    $('tfaMsg').className = 'msg' + (r.ok ? ' ok' : '');
+    $('tfaMsg').textContent = r.ok ? 'Authenticator подключён.' : ((r.data && r.data.error) || 'Ошибка');
+  });
+  $('tfaBackupNew').addEventListener('click', async () => {
+    const r = await api('/api/account/2fa/backup/regenerate', { method: 'POST' });
+    if (r.ok) { $('tfaTotpBox').classList.remove('hidden'); $('tfaBackup').textContent = 'Резервные коды: ' + r.data.backupCodes.join(' '); }
   });
   $('tfaClose').addEventListener('click', () => $('tfaModal').classList.add('hidden'));
   $('tfaCopy').addEventListener('click', () => copyTestCode($('tfaCodeValue').textContent, $('tfaCopy')));
@@ -2152,6 +2209,8 @@
       $('tfaCodeBox').classList.remove('hidden');
       $('tfaCodeValue').textContent = r.data.testCode;
       msg.textContent = 'Письмо недоступно — используй код ниже.';
+      if ($('tfaMethod').value === 'push' && 'Notification' in window && Notification.permission === 'granted')
+        new Notification('Murzila Music — код 2FA', { body: 'Код: ' + r.data.testCode });
     } else {
       $('tfaCodeBox').classList.add('hidden');
       msg.textContent = 'Код отправлен на почту.';
@@ -2183,7 +2242,7 @@
   $('logoutBtn').addEventListener('click', async () => {
     await api('/api/web/logout', { method: 'POST' });
     stopGuestTimer();
-    localStorage.removeItem(LS_GUEST);
+    localStorage.removeItem(LS_GUEST); localStorage.removeItem(LS_GUEST_LOCK);
     state.user = null; state.token = null; state.guest = false;
     state.tracks = []; state.view = []; state.index = -1; state.currentTrack = null;
     audio.pause(); audio.removeAttribute('src'); setPlaying(false);
@@ -2203,7 +2262,8 @@
       const left = state.guestUntil - Date.now();
       if (left <= 0) {
         stopGuestTimer();
-        localStorage.removeItem(LS_GUEST);
+        localStorage.removeItem(LS_GUEST); localStorage.removeItem(LS_GUEST_LOCK);
+        localStorage.setItem(LS_GUEST_LOCK, '1');
         state.guest = false; state.token = null;
         audio.pause(); audio.removeAttribute('src'); setPlaying(false);
         state.tracks = []; state.view = []; state.index = -1; state.currentTrack = null;
@@ -2421,13 +2481,18 @@
       $('logoutBtn').classList.add('hidden');
       $('uploadBtn').classList.add('hidden');
       $('who').textContent = '';
+      if (!forceGuest && localStorage.getItem(LS_GUEST_LOCK) === '1') {
+        setStatus('сессия гостя закончилась — нужна регистрация', 'warn');
+        applyFilter(); openAuth();
+        return;
+      }
       const ok = await enterGuest(forceGuest);
       if (!ok) { setStatus('нужен вход', 'warn'); applyFilter(); openAuth(); }
       return;
     }
 
     stopGuestTimer();
-    localStorage.removeItem(LS_GUEST);
+    localStorage.removeItem(LS_GUEST); localStorage.removeItem(LS_GUEST_LOCK);
     state.guest = false;
     state.user = me.data.user;
     $('loginBtn').classList.add('hidden');

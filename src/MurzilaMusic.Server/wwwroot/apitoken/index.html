@@ -265,7 +265,24 @@ curl http://localhost:6001/api/music/cover/ID_ТРЕКА \
       const id = document.createElement("span");
       id.className = "id";
       id.textContent = app.id.slice(0, 8);
-      li.append(name, id);
+      const reset = document.createElement("button");
+      reset.textContent = "Сбросить токен";
+      reset.addEventListener("click", async () => {
+        const r = await api("/api/apps/" + encodeURIComponent(app.id) + "/reset", { method: "POST" });
+        if (r.ok) {
+          $("apiKey").value = r.data.apiKey;
+          $("tokenOut").textContent = r.data.token;
+          alert("Новый API-ключ и токен выданы. Старый ключ больше не работает.");
+        } else alert((r.data && r.data.error) || "Не удалось сбросить токен");
+      });
+      const del = document.createElement("button");
+      del.textContent = "Удалить";
+      del.addEventListener("click", async () => {
+        if (!confirm("Удалить приложение и все его токены?")) return;
+        const r = await api("/api/apps/" + encodeURIComponent(app.id), { method: "DELETE" });
+        if (r.ok) await loadApps(); else alert((r.data && r.data.error) || "Не удалось удалить");
+      });
+      li.append(name, id, reset, del);
       list.append(li);
     }
   }

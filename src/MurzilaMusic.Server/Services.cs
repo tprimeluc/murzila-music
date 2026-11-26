@@ -23,6 +23,8 @@ public sealed record ForgotRequest(string Email);
 public sealed record ResetPasswordRequest(string Email, string Code, string NewPassword);
 public sealed record SetSharedRequest(bool Allowed);
 public sealed record TwoFactorVerifyRequest(string Email, string Code);
+public sealed record ConfirmTotpRequest(string Code);
+public sealed record SetTwoFactorMethodRequest(string Method);
 public sealed record Disable2FaRequest(string Password);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeEmailCodeRequest(string NewEmail);
@@ -729,6 +731,10 @@ public sealed class Db
         await EnsureColumnAsync(connection, "Users", "TwoFactorEnabled", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "ApiApps", "UserId", "TEXT");
         await EnsureColumnAsync(connection, "Sessions", "IsGuest", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Sessions", "DeviceHash", "TEXT");
+        await EnsureColumnAsync(connection, "Users", "TotpSecret", "TEXT");
+        await EnsureColumnAsync(connection, "Users", "BackupCodes", "TEXT");
+        await EnsureColumnAsync(connection, "Users", "TwoFactorMethod", "TEXT NOT NULL DEFAULT 'email'");
     }
 
     private static async Task EnsureColumnAsync(SqliteConnection connection, string table, string column, string type)
