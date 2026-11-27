@@ -26,6 +26,7 @@ if (-not $env:YOOKASSA_SHOP_ID -or -not $env:YOOKASSA_SECRET_KEY) {
 
 Write-Host "Онлайн-сервис: $env:MURZILA_SERVER_URL" -ForegroundColor Cyan
 if ($env:MURZILA_BIND_URL) {
-    Write-Host "Привязка Kestrel: $env:MURZILA_BIND_URL" -ForegroundColor DarkCyan
+    Write-Host "Привязка Kestrel: $env:MURZILA_BIND_URL + http://0.0.0.0:80 (свой хостинг)" -ForegroundColor DarkCyan
 }
+Write-Host "Сайты: /player (музыка) · /files (FileSharing) · /api/token · /download · корень домена" -ForegroundColor DarkCyan
 dotnet run --project $project

@@ -110,6 +110,10 @@ else
     // Публичный бинд (0.0.0.0) не должен ломать локальный доступ приложения и плеера.
     app.Urls.Add("http://localhost:6001");
     app.Urls.Add("http://localhost:5188");
+    // Свой хостинг: сайт открывается без порта. На облачных хостингах (Render и т.п.)
+    // порт задаётся переменной PORT — там 80-й не нужен и может быть запрещён.
+    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PORT")))
+        app.Urls.Add("http://0.0.0.0:80");
 }
 
 app.MapGet("/", (HttpContext context, IWebHostEnvironment env) =>
