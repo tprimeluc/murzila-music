@@ -1373,7 +1373,18 @@
 
   function renderNow() {
     const t = current();
-    $('npTitle').textContent = t ? t.title : 'Ничего не играет';
+    $('npTitle').textContent = '';
+    if (t) {
+      $('npTitle').append(document.createTextNode(t.title));
+      if (t.isExplicit || t.is18Plus) {
+        const badge = document.createElement('span');
+        badge.className = 'explicit-badge';
+        badge.textContent = t.isExplicit ? 'Explicit' : '18+';
+        $('npTitle').append(' ', badge);
+      }
+    } else {
+      $('npTitle').textContent = 'Ничего не играет';
+    }
     $('npArtist').textContent = t ? (t.artist + (t.album ? ' · ' + t.album : '')) : 'Выбери трек';
     $('barTitle').textContent = t ? t.title : '—';
     $('barArtist').textContent = t ? t.artist : '—';
