@@ -277,6 +277,7 @@ public sealed class CloudStore
         IFormFile? cover, IFormFile? video, IFormFile? lyrics, string userId)
     {
         meta.Id = SafeId(meta.Id);
+        EnsureOwnSourceOnly(meta);
         string dir = UserDirectory(userId);
         string ext = SafeExtension(audio.FileName, AudioExtensions);
         await SaveAsync(audio, Path.Combine(dir, meta.Id + ext));
@@ -429,13 +430,33 @@ public sealed class CloudStore
         }
     }
 
+    /// <summary>
+    /// Политика платформы: Murzila Music принимает только свои локальные файлы.
+    /// Ссылки на YouTube, SoundCloud, Spotify и другие чужие источники в метаданных
+    /// запрещены. Внешние источники разрешены только боту ProgramMt7Bot.
+    /// </summary>
+    private static readonly Regex ExternalSourceRx = new(
+        @"(https?://|www\.|youtu\.be|youtube\.com|soundcloud\.com|open\.spotify\.com|" +
+        @"music\.apple\.com|music\.yandex\.|vk\.com|deezer\.com|bandcamp\.com|tidal\.com|qobuz\.com)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static void EnsureOwnSourceOnly(CloudTrackMeta meta)
+    {
+        foreach (string value in new[] { meta.Title, meta.Artist, meta.Album, meta.FileName })
+        {
+            if (!string.IsNullOrWhiteSpace(value) && ExternalSourceRx.IsMatch(value))
+                throw new InvalidDataException(
+                    "Murzila Music разрешает только свои треки. Ссылки на чужие источники и сервисы в метаданных запрещены — они доступны только боту.");
+        }
+    }
+
     public static CloudTrackMeta MetaFromForm(IFormCollection form)
     {
         double.TryParse(form["durationSeconds"], NumberStyles.Any, CultureInfo.InvariantCulture, out double duration);
         long.TryParse(form["fileSize"], NumberStyles.Any, CultureInfo.InvariantCulture, out long size);
         bool Bool(string key) => string.Equals(form[key], "true", StringComparison.OrdinalIgnoreCase)
                                  || form[key] == "1";
-        return new CloudTrackMeta
+        var meta = new CloudTrackMeta
         {
             Id = form["id"].ToString(),
             Title = form["title"].ToString(),
@@ -449,6 +470,8 @@ public sealed class CloudStore
             HasLyrics = Bool("hasLyrics"),
             AllowExternal = Bool("allowExternal")
         };
+        EnsureOwnSourceOnly(meta);
+        return meta;
     }
 
     public static string ContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
