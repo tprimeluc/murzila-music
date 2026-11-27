@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 
@@ -25,6 +26,12 @@ public sealed class CloudTrackMeta
 
     /// <summary>Артист сам разрешил другим слушать этот трек в Murzila Music.</summary>
     public bool AllowExternal { get; set; }
+
+    /// <summary>В тексте/названии есть нецензурная лексика.</summary>
+    public bool IsExplicit { get; set; }
+
+    /// <summary>Жестокость, алкоголь, 18+.</summary>
+    public bool Is18Plus { get; set; }
 }
 
 /// <summary>
@@ -71,19 +78,24 @@ public sealed class CloudStore
                 HasVideo INTEGER NOT NULL DEFAULT 0,
                 HasLyrics INTEGER NOT NULL DEFAULT 0,
                 AllowExternal INTEGER NOT NULL DEFAULT 0,
+                IsExplicit INTEGER NOT NULL DEFAULT 0,
+                Is18Plus INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (UserId, Id)
             );
             """;
         await command.ExecuteNonQueryAsync();
 
-        // База уже могла быть создана старой версией — добавляем колонку без потери данных.
-        try
+        // База уже могла быть создана старой версией — добавляем колонки без потери данных.
+        foreach (string column in new[] { "AllowExternal", "IsExplicit", "Is18Plus" })
         {
-            await using var alter = connection.CreateCommand();
-            alter.CommandText = "ALTER TABLE CloudTracks ADD COLUMN AllowExternal INTEGER NOT NULL DEFAULT 0";
-            await alter.ExecuteNonQueryAsync();
+            try
+            {
+                await using var alter = connection.CreateCommand();
+                alter.CommandText = $"ALTER TABLE CloudTracks ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0";
+                await alter.ExecuteNonQueryAsync();
+            }
+            catch { /* колонка уже есть */ }
         }
-        catch { /* колонка уже есть */ }
     }
 
     private string UserDirectory(string userId)
@@ -104,6 +116,17 @@ public sealed class CloudStore
         return id;
     }
 
+    private static readonly Regex ExplicitRx = new(
+        @"\b(хуй|хуе|хуя|пизд|ебан|ебат|ебать|бля|блять|сука|мудак|пидор|fuck|shit|bitch|damn|asshole|cunt)\w*\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex AdultRx = new(
+        @"\b(убийств|убить|кровь|кровав|насили| жесток|алкогол|vodka|вино|пиво|бутыл|наркотик|дрог|секс|porn|kill|murder|blood|violence|drunk|alcohol|weed|cocaine)\w*\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static (bool Explicit, bool Plus18) DetectFlags(string text)
+        => (ExplicitRx.IsMatch(text), AdultRx.IsMatch(text));
+
     private static string SafeExtension(string? name, string[] allowed)
     {
         string ext = Path.GetExtension(name ?? "").ToLowerInvariant();
@@ -118,7 +141,7 @@ public sealed class CloudStore
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT Id, Title, Artist, Album, DurationSeconds, AddedAt, UpdatedAt, FileSize, FileName,
-                   HasCover, HasVideo, HasLyrics, AllowExternal
+                   HasCover, HasVideo, HasLyrics, AllowExternal, IsExplicit, Is18Plus
             FROM CloudTracks WHERE UserId=$user ORDER BY AddedAt DESC
             """;
         command.Parameters.AddWithValue("$user", userId);
@@ -132,7 +155,8 @@ public sealed class CloudStore
                 AddedAt = reader.GetString(5), UpdatedAt = reader.GetString(6),
                 FileSize = reader.GetInt64(7), FileName = reader.GetString(8),
                 HasCover = reader.GetInt32(9) != 0, HasVideo = reader.GetInt32(10) != 0,
-                HasLyrics = reader.GetInt32(11) != 0
+                HasLyrics = reader.GetInt32(11) != 0, AllowExternal = reader.GetInt32(12) != 0,
+                IsExplicit = reader.GetInt32(13) != 0, Is18Plus = reader.GetInt32(14) != 0
             });
         }
         return result;
@@ -145,7 +169,7 @@ public sealed class CloudStore
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT Id, Title, Artist, Album, DurationSeconds, AddedAt, UpdatedAt, FileSize, FileName,
-                   HasCover, HasVideo, HasLyrics, AllowExternal
+                   HasCover, HasVideo, HasLyrics, AllowExternal, IsExplicit, Is18Plus
             FROM CloudTracks WHERE UserId=$user AND Id=$id
             """;
         command.Parameters.AddWithValue("$user", userId);
@@ -159,7 +183,8 @@ public sealed class CloudStore
             AddedAt = reader.GetString(5), UpdatedAt = reader.GetString(6),
             FileSize = reader.GetInt64(7), FileName = reader.GetString(8),
             HasCover = reader.GetInt32(9) != 0, HasVideo = reader.GetInt32(10) != 0,
-            HasLyrics = reader.GetInt32(11) != 0, AllowExternal = reader.GetInt32(12) != 0
+            HasLyrics = reader.GetInt32(11) != 0, AllowExternal = reader.GetInt32(12) != 0,
+            IsExplicit = reader.GetInt32(13) != 0, Is18Plus = reader.GetInt32(14) != 0
         };
     }
 
@@ -198,7 +223,7 @@ public sealed class CloudStore
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT UserId, Id, Title, Artist, Album, DurationSeconds, AddedAt, UpdatedAt, FileSize, FileName,
-                   HasCover, HasVideo, HasLyrics
+                   HasCover, HasVideo, HasLyrics, IsExplicit, Is18Plus
             FROM CloudTracks WHERE Id=$id AND AllowExternal=1 LIMIT 1
             """;
         command.Parameters.AddWithValue("$id", safeId);
@@ -211,7 +236,8 @@ public sealed class CloudStore
             AddedAt = reader.GetString(6), UpdatedAt = reader.GetString(7),
             FileSize = reader.GetInt64(8), FileName = reader.GetString(9),
             HasCover = reader.GetInt32(10) != 0, HasVideo = reader.GetInt32(11) != 0,
-            HasLyrics = reader.GetInt32(12) != 0, AllowExternal = true
+            HasLyrics = reader.GetInt32(12) != 0, AllowExternal = true,
+            IsExplicit = reader.GetInt32(13) != 0, Is18Plus = reader.GetInt32(14) != 0
         });
     }
 
@@ -225,6 +251,25 @@ public sealed class CloudStore
         command.Parameters.AddWithValue("$flag", allowed ? 1 : 0);
         command.Parameters.AddWithValue("$user", userId);
         command.Parameters.AddWithValue("$id", safeId);
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    /// <summary>Артист или модератор вручную ставит/снимает пометки Explicit и 18+.</summary>
+    public async Task<bool> SetFlagsAsync(string userId, string id, bool? explicitFlag, bool? plus18)
+    {
+        string safeId = SafeId(id);
+        await using var connection = _db.Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE CloudTracks SET
+                IsExplicit = CASE WHEN $explicit IS NULL THEN IsExplicit ELSE $explicit END,
+                Is18Plus   = CASE WHEN $plus18 IS NULL THEN Is18Plus ELSE $plus18 END
+            WHERE UserId=$user AND Id=$id
+            """;
+        command.Parameters.AddWithValue("$user", userId);
+        command.Parameters.AddWithValue("$id", safeId);
+        command.Parameters.AddWithValue("$explicit", (object?)explicitFlag ?? DBNull.Value);
+        command.Parameters.AddWithValue("$plus18", (object?)plus18 ?? DBNull.Value);
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
@@ -260,19 +305,32 @@ public sealed class CloudStore
         meta.HasLyrics = hasLyrics;
         meta.UpdatedAt = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
+        string scanText = string.Join(" ", meta.Title, meta.Artist, meta.Album);
+        if (lyrics is not null && lyrics.Length > 0)
+        {
+            try
+            {
+                using var reader = new StreamReader(lyrics.OpenReadStream(), detectEncodingFromByteOrderMarks: true);
+                scanText += " " + await reader.ReadToEndAsync();
+            }
+            catch { }
+        }
+        (meta.IsExplicit, meta.Is18Plus) = DetectFlags(scanText);
+
         await using var connection = _db.Open();
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO CloudTracks (UserId, Id, Title, Artist, Album, DurationSeconds, AddedAt,
-                                     UpdatedAt, FileSize, FileName, HasCover, HasVideo, HasLyrics, AllowExternal)
+                                     UpdatedAt, FileSize, FileName, HasCover, HasVideo, HasLyrics, AllowExternal,
+                                     IsExplicit, Is18Plus)
             VALUES ($user, $id, $title, $artist, $album, $duration, $added,
-                    $updated, $size, $file, $cover, $video, $lyrics, $shared)
+                    $updated, $size, $file, $cover, $video, $lyrics, $shared, $explicit, $plus18)
             ON CONFLICT(UserId, Id) DO UPDATE SET
                 Title=excluded.Title, Artist=excluded.Artist, Album=excluded.Album,
                 DurationSeconds=excluded.DurationSeconds, AddedAt=excluded.AddedAt,
                 UpdatedAt=excluded.UpdatedAt, FileSize=excluded.FileSize, FileName=excluded.FileName,
                 HasCover=excluded.HasCover, HasVideo=excluded.HasVideo, HasLyrics=excluded.HasLyrics,
-                AllowExternal=excluded.AllowExternal
+                AllowExternal=excluded.AllowExternal, IsExplicit=excluded.IsExplicit, Is18Plus=excluded.Is18Plus
             """;
         command.Parameters.AddWithValue("$user", userId);
         command.Parameters.AddWithValue("$id", meta.Id);
@@ -289,6 +347,8 @@ public sealed class CloudStore
         command.Parameters.AddWithValue("$video", hasVideo ? 1 : 0);
         command.Parameters.AddWithValue("$lyrics", hasLyrics ? 1 : 0);
         command.Parameters.AddWithValue("$shared", meta.AllowExternal ? 1 : 0);
+        command.Parameters.AddWithValue("$explicit", meta.IsExplicit ? 1 : 0);
+        command.Parameters.AddWithValue("$plus18", meta.Is18Plus ? 1 : 0);
         await command.ExecuteNonQueryAsync();
         return meta;
     }

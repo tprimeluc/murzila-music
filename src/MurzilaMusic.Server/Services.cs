@@ -27,6 +27,9 @@ public sealed record ConfirmTotpRequest(string Code);
 public sealed record SetTwoFactorMethodRequest(string Method);
 public sealed record IcqAddContactRequest(string Email, string Nick, string Group);
 public sealed record IcqSendRequest(string To, string Text);
+public sealed record KassaTopUpRequest(long AmountMinor, string Reference);
+public sealed record KassaSubscribeRequest(string Plan);
+public sealed record ArtistVerifyRequest(string Type, int MonthlyListeners, int Followers);
 public sealed record Disable2FaRequest(string Password);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeEmailCodeRequest(string NewEmail);
@@ -690,6 +693,34 @@ public sealed class Db
                 Description TEXT,
                 CreatedAt TEXT NOT NULL,
                 UNIQUE (RefId, Reason)
+            );
+            CREATE TABLE IF NOT EXISTS KassaSubscriptions (
+                UserId TEXT NOT NULL,
+                Plan TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL,
+                AutoRenew INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (UserId, Plan)
+            );
+            CREATE TABLE IF NOT EXISTS ArtistVerifications (
+                UserId TEXT PRIMARY KEY,
+                Type TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'pending',
+                Code TEXT NOT NULL,
+                MonthlyListeners INTEGER NOT NULL DEFAULT 0,
+                Followers INTEGER NOT NULL DEFAULT 0,
+                CreatedAt TEXT NOT NULL,
+                ReviewedAt TEXT
+            );
+            CREATE TABLE IF NOT EXISTS SharedFiles (
+                Id TEXT PRIMARY KEY,
+                UserId TEXT NOT NULL,
+                FileName TEXT NOT NULL,
+                ContentType TEXT NOT NULL,
+                FileSize INTEGER NOT NULL,
+                StoredName TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL,
+                Downloads INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS Refunds (
                 Id TEXT PRIMARY KEY,

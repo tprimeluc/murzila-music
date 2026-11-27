@@ -7,6 +7,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Data.Sqlite;
 using MurzilaMusic.Server;
@@ -68,12 +70,29 @@ builder.Services.AddSingleton(sms);
 builder.Services.AddSingleton(store);
 builder.Services.AddSingleton(cloud);
 builder.Services.AddSingleton(api);
+builder.Services.AddSingleton<FastLyrics>();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.Providers.Add<BrotliCompressionProvider>();
+});
 
 var app = builder.Build();
 app.UseCors();
-app.UseStaticFiles();
+app.UseResponseCompression();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        string path = ctx.File.Name;
+        ctx.Context.Response.Headers.CacheControl = path.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+            ? "no-store, no-cache, must-revalidate"
+            : "public, max-age=86400";
+    }
+});
 
 // Сайт доступен глобально: плеер, API и караоке открыты для всех,
 // а ботовый стрим защищён отдельным ключом (проверка внутри endpoint).
@@ -199,7 +218,7 @@ app.MapGet("/api/music/library", async (HttpContext context, Db database, ApiSer
         tracks.Add(new
         {
             t.Id, t.Title, t.Artist, t.Album, t.DurationSeconds, t.FileSize, t.FileName,
-            t.HasCover, t.HasVideo, t.HasLyrics, t.AllowExternal,
+            t.HasCover, t.HasVideo, t.HasLyrics, t.AllowExternal, t.IsExplicit, t.Is18Plus,
             streamUrl = "/api/music/files/" + t.Id,
             coverUrl = "/api/music/cover/" + t.Id
         });
@@ -291,6 +310,7 @@ app.MapGet("/api/music/shared", async (HttpContext context, Db database, ApiServ
         {
             x.Track.Id, x.Track.Title, x.Track.Artist, x.Track.Album,
             x.Track.DurationSeconds, x.Track.FileSize,
+            x.Track.IsExplicit, x.Track.Is18Plus,
             streamUrl = "/api/music/shared/files/" + x.Track.Id,
             kind = "shared"
         })
@@ -347,6 +367,22 @@ app.MapGet("/api/music/lyrics/{trackId}", async (HttpContext context, Db databas
     if (path is null) return Results.NotFound(new { error = "У трека нет текста (LRC)." });
     string text = await File.ReadAllTextAsync(path);
     return Results.Json(new { trackId, format = "lrc", text });
+});
+
+// Быстрый поиск текста: все провайдеры одновременно, победитель — самый быстрый.
+app.MapGet("/api/lyrics/search", async (string? artist, string? title, double? duration,
+    HttpContext context, Db database, FastLyrics fastLyrics) =>
+{
+    if (await FindUserAsync(database, context) is null)
+        return Results.Json(new { error = "Нужен вход (или гостевой режим)." }, statusCode: 401);
+    if (string.IsNullOrWhiteSpace(title))
+        return Results.BadRequest(new { error = "Укажи название трека." });
+    var result = await fastLyrics.SearchAsync(artist ?? "", title, duration ?? 0);
+    return Results.Json(new
+    {
+        result.Text, result.Synced, source = result.Source, elapsedMs = result.ElapsedMs,
+        providers = result.Providers.Select(p => new { p.Provider, p.Ms, p.Ok, p.Synced })
+    });
 });
 
 // Караоке: сначала lrclib, если ничего нет — Genius. Текст кэшируется рядом со своим треком.
@@ -1008,6 +1044,310 @@ app.MapPost("/api/account/2fa/method", async (SetTwoFactorMethodRequest request,
     command.Parameters.AddWithValue("$id", user.Id);
     await command.ExecuteNonQueryAsync();
     return Results.Ok(new { method });
+});
+
+// ---------- Murzila FileSharing: обмен своими файлами по ссылке ----------
+
+string shareRoot = Path.Combine(Environment.GetEnvironmentVariable("MURZILA_CLOUD_DIR")
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MurzilaMusic"), "shares");
+Directory.CreateDirectory(shareRoot);
+
+app.MapPost("/api/filesharing/upload", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var form = await context.Request.ReadFormAsync();
+    var file = form.Files.GetFile("file");
+    if (file is null || file.Length <= 0) return Results.BadRequest(new { error = "Файл пуст." });
+    if (file.Length > 200L * 1024 * 1024)
+        return Results.BadRequest(new { error = "Максимальный размер файла — 200 МБ." });
+    string id = Guid.NewGuid().ToString("N")[..14];
+    string stored = id + Path.GetExtension(file.FileName ?? "");
+    string full = Path.Combine(shareRoot, stored);
+    await using (var stream = System.IO.File.Create(full)) await file.CopyToAsync(stream);
+    string now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    string exp = DateTime.UtcNow.AddDays(30).ToString("O", CultureInfo.InvariantCulture);
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = """
+        INSERT INTO SharedFiles (Id, UserId, FileName, ContentType, FileSize, StoredName, CreatedAt, ExpiresAt)
+        VALUES ($id,$user,$name,$type,$size,$stored,$now,$exp)
+        """;
+    cmd.Parameters.AddWithValue("$id", id);
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    cmd.Parameters.AddWithValue("$name", Path.GetFileName(file.FileName ?? "file"));
+    cmd.Parameters.AddWithValue("$type", file.ContentType ?? "application/octet-stream");
+    cmd.Parameters.AddWithValue("$size", file.Length);
+    cmd.Parameters.AddWithValue("$stored", stored);
+    cmd.Parameters.AddWithValue("$now", now);
+    cmd.Parameters.AddWithValue("$exp", exp);
+    await cmd.ExecuteNonQueryAsync();
+    return Results.Ok(new { id, url = "/s/" + id, fileName = Path.GetFileName(file.FileName ?? "file"),
+        size = file.Length, expiresAt = exp });
+});
+
+app.MapGet("/api/filesharing/list", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    var items = new List<object>();
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = "SELECT Id, FileName, FileSize, CreatedAt, ExpiresAt, Downloads FROM SharedFiles WHERE UserId=$user ORDER BY CreatedAt DESC";
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        items.Add(new { id = reader.GetString(0), fileName = reader.GetString(1), size = reader.GetInt64(2),
+            createdAt = reader.GetString(3), expiresAt = reader.GetString(4), downloads = reader.GetInt32(5),
+            url = "/s/" + reader.GetString(0) });
+    return Results.Json(new { files = items });
+});
+
+app.MapDelete("/api/filesharing/files/{id}", async (string id, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = "SELECT StoredName FROM SharedFiles WHERE Id=$id AND UserId=$user";
+    cmd.Parameters.AddWithValue("$id", id);
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    string? stored = await cmd.ExecuteScalarAsync() as string;
+    if (stored is null) return Results.NotFound();
+    await using var del = connection.CreateCommand();
+    del.CommandText = "DELETE FROM SharedFiles WHERE Id=$id AND UserId=$user";
+    del.Parameters.AddWithValue("$id", id);
+    del.Parameters.AddWithValue("$user", user.Id);
+    await del.ExecuteNonQueryAsync();
+    try { System.IO.File.Delete(Path.Combine(shareRoot, stored)); } catch { }
+    return Results.Ok(new { deleted = true });
+});
+
+// Публичная отдача файла по ссылке — доступна без токена, это и есть «share by URL».
+app.MapGet("/api/filesharing/files/{id}", async (string id, HttpContext context, Db database) =>
+{
+    string? stored = null, name = null, type = null, exp = null;
+    await using (var connection = database.Open())
+    await using (var cmd = connection.CreateCommand())
+    {
+        cmd.CommandText = "SELECT StoredName, FileName, ContentType, ExpiresAt FROM SharedFiles WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            stored = reader.GetString(0); name = reader.GetString(1);
+            type = reader.GetString(2); exp = reader.GetString(3);
+        }
+    }
+    if (stored is null) return Results.NotFound();
+    if (DateTime.TryParse(exp, out var expires) && expires < DateTime.UtcNow)
+        return Results.Json(new { error = "Ссылка истекла." }, statusCode: 410);
+    string full = Path.Combine(shareRoot, stored);
+    if (!System.IO.File.Exists(full)) return Results.NotFound();
+    await using (var connection = database.Open())
+    await using (var bump = connection.CreateCommand())
+    {
+        bump.CommandText = "UPDATE SharedFiles SET Downloads=Downloads+1 WHERE Id=$id";
+        bump.Parameters.AddWithValue("$id", id);
+        await bump.ExecuteNonQueryAsync();
+    }
+    return Results.File(full, string.IsNullOrWhiteSpace(type) ? "application/octet-stream" : type,
+        Path.GetFileName(name ?? stored), enableRangeProcessing: true);
+});
+
+app.MapGet("/s/{id}", async (string id, HttpContext context, IWebHostEnvironment env, Db database) =>
+{
+    string? name = null, size = null;
+    await using (var connection = database.Open())
+    await using (var cmd = connection.CreateCommand())
+    {
+        cmd.CommandText = "SELECT FileName, FileSize FROM SharedFiles WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync()) { name = reader.GetString(0); size = reader.GetInt64(1).ToString(); }
+    }
+    if (name is null) return Results.NotFound("Файл не найден или ссылка истекла.");
+    string page = """
+        <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Murzila FileSharing — файл</title><link rel="icon" href="/favicon.ico">
+        <style>body{margin:0;background:#07070c;color:#f4f4f9;font-family:"Segoe UI",system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}
+        .c{background:#15151f;border:1px solid #2a2a3a;border-radius:18px;padding:34px;max-width:440px;text-align:center}
+        h1{font-size:21px;margin:0 0 8px}p{color:#9c9cb2;font-size:13px;line-height:1.6}
+        a{display:inline-block;margin-top:14px;padding:12px 22px;border-radius:11px;background:#1ed760;color:#05120a;font-weight:700;text-decoration:none}</style></head>
+        <body><div class="c"><h1>Файл готов к скачиванию</h1><p>__NAME__ · __SIZE__ байт<br>Murzila FileSharing — только файлы владельца.</p>
+        <a href="/api/filesharing/files/__ID__">Скачать</a></div></body></html>
+        """;
+    page = page.Replace("__NAME__", System.Net.WebUtility.HtmlEncode(name))
+               .Replace("__SIZE__", size ?? "0").Replace("__ID__", id);
+    context.Response.ContentType = "text/html; charset=utf-8";
+    return Results.Content(page);
+});
+
+// ---------- Murzila Kassa: внутренний баланс и подписки ----------
+
+app.MapGet("/api/kassa/balance", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    long amount = 0;
+    var subs = new List<object>();
+    await using (var connection = database.Open())
+    {
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT AmountMinor FROM Balances WHERE UserId=$user";
+            cmd.Parameters.AddWithValue("$user", user.Id);
+            object? value = await cmd.ExecuteScalarAsync();
+            if (value is not null) amount = Convert.ToInt64(value);
+        }
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT Plan, ExpiresAt, AutoRenew FROM KassaSubscriptions WHERE UserId=$user";
+            cmd.Parameters.AddWithValue("$user", user.Id);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                subs.Add(new { plan = reader.GetString(0), expiresAt = reader.GetString(1), autoRenew = reader.GetInt32(2) != 0 });
+        }
+    }
+    return Results.Json(new { amountMinor = amount, subscriptions = subs });
+});
+
+app.MapPost("/api/kassa/topup", async (KassaTopUpRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    long amount = Math.Clamp(request.AmountMinor, 100, 1_000_000);
+    string reference = string.IsNullOrWhiteSpace(request.Reference)
+        ? "manual-" + Guid.NewGuid().ToString("N") : request.Reference.Trim();
+    string now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = """
+        INSERT INTO BalanceLedger (Id, UserId, DeltaMinor, Reason, RefId, Description, CreatedAt)
+        VALUES ($id, $user, $amount, 'topup', $ref, $desc, $now);
+        INSERT INTO Balances (UserId, AmountMinor, UpdatedAt) VALUES ($user, $amount, $now)
+        ON CONFLICT(UserId) DO UPDATE SET AmountMinor=AmountMinor+excluded.AmountMinor, UpdatedAt=excluded.UpdatedAt;
+        """;
+    cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    cmd.Parameters.AddWithValue("$amount", amount);
+    cmd.Parameters.AddWithValue("$ref", reference);
+    cmd.Parameters.AddWithValue("$desc", "Murzila Kassa: ручное пополнение");
+    cmd.Parameters.AddWithValue("$now", now);
+    try { await cmd.ExecuteNonQueryAsync(); }
+    catch (Microsoft.Data.Sqlite.SqliteException) { return Results.BadRequest(new { error = "Такой платёж уже учтён." }); }
+    return Results.Ok(new { amountMinor = amount, reference });
+});
+
+app.MapPost("/api/kassa/subscribe", async (KassaSubscribeRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string plan = (request.Plan ?? "basic").Trim().ToLowerInvariant();
+    long price = plan switch { "pro" => 5000, "ultra" => 10000, _ => 1000 };
+    string now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    await using var connection = database.Open();
+    long balance = 0;
+    await using (var read = connection.CreateCommand())
+    {
+        read.CommandText = "SELECT AmountMinor FROM Balances WHERE UserId=$user";
+        read.Parameters.AddWithValue("$user", user.Id);
+        object? value = await read.ExecuteScalarAsync();
+        if (value is not null) balance = Convert.ToInt64(value);
+    }
+    if (balance < price) return Results.BadRequest(new { error = "Недостаточно средств Murzila Kassa." });
+    await using var tx = connection.BeginTransaction();
+    await using (var spend = connection.CreateCommand())
+    {
+        spend.Transaction = tx;
+        spend.CommandText = "UPDATE Balances SET AmountMinor=AmountMinor-$price, UpdatedAt=$now WHERE UserId=$user";
+        spend.Parameters.AddWithValue("$price", price);
+        spend.Parameters.AddWithValue("$now", now);
+        spend.Parameters.AddWithValue("$user", user.Id);
+        await spend.ExecuteNonQueryAsync();
+    }
+    await using (var sub = connection.CreateCommand())
+    {
+        sub.Transaction = tx;
+        sub.CommandText = """
+            INSERT INTO KassaSubscriptions (UserId, Plan, ExpiresAt, AutoRenew) VALUES ($user,$plan,$exp,0)
+            ON CONFLICT(UserId, Plan) DO UPDATE SET ExpiresAt=excluded.ExpiresAt, AutoRenew=0;
+            """;
+        sub.Parameters.AddWithValue("$user", user.Id);
+        sub.Parameters.AddWithValue("$plan", plan);
+        sub.Parameters.AddWithValue("$exp", DateTime.UtcNow.AddDays(30).ToString("O", CultureInfo.InvariantCulture));
+        await sub.ExecuteNonQueryAsync();
+    }
+    await tx.CommitAsync();
+    return Results.Ok(new { plan, priceMinor = price, expiresAt = DateTime.UtcNow.AddDays(30).ToString("O", CultureInfo.InvariantCulture) });
+});
+
+// ---------- подтверждение артиста ----------
+
+app.MapGet("/api/artist/verify/status", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = "SELECT Type, Status, Code, MonthlyListeners, Followers, CreatedAt, ReviewedAt FROM ArtistVerifications WHERE UserId=$user";
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return Results.Ok(new { status = "none" });
+    return Results.Ok(new
+    {
+        type = reader.GetString(0), status = reader.GetString(1), code = reader.GetString(2),
+        monthlyListeners = reader.GetInt32(3), followers = reader.GetInt32(4),
+        createdAt = reader.GetString(5), reviewedAt = reader.IsDBNull(6) ? null : reader.GetString(6),
+        badge = reader.GetString(1) == "approved" ? "Подтверждено Murzila ✓" : ""
+    });
+});
+
+app.MapPost("/api/artist/verify/start", async (ArtistVerifyRequest request, HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    string type = (request.Type ?? "small").Trim().ToLowerInvariant();
+    if (type is not ("large" or "small")) return Results.BadRequest(new { error = "Выбери тип артиста." });
+    int listeners = Math.Max(0, request.MonthlyListeners);
+    int followers = Math.Max(0, request.Followers);
+    int needFollowers = type == "large" ? 1000 : 500;
+    if (listeners < 1000 || followers < needFollowers)
+        return Results.BadRequest(new { error = $"Нужно 1000 слушателей в месяц и {needFollowers} подписчиков." });
+    string code = "murzila-verify-" + RandomNumberGenerator.GetInt32(10000, 99999);
+    string now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = """
+        INSERT INTO ArtistVerifications (UserId, Type, Status, Code, MonthlyListeners, Followers, CreatedAt)
+        VALUES ($user,$type,'pending',$code,$listeners,$followers,$now)
+        ON CONFLICT(UserId) DO UPDATE SET Type=excluded.Type, Status='pending', Code=excluded.Code,
+            MonthlyListeners=excluded.MonthlyListeners, Followers=excluded.Followers, CreatedAt=excluded.CreatedAt, ReviewedAt=NULL;
+        """;
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    cmd.Parameters.AddWithValue("$type", type);
+    cmd.Parameters.AddWithValue("$code", code);
+    cmd.Parameters.AddWithValue("$listeners", listeners);
+    cmd.Parameters.AddWithValue("$followers", followers);
+    cmd.Parameters.AddWithValue("$now", now);
+    await cmd.ExecuteNonQueryAsync();
+    return Results.Ok(new { code, type, instruction = type == "large"
+        ? "Вставь этот код без лишних слов в description крупных площадок: Яндекс Музыка, Spotify, Apple Music, YouTube Music, Amazon Music, SoundCloud, Bandcamp, Tidal, Qobuz, Deezer, QQ Music."
+        : "Профиль не должен быть посвящён ИИ-музыке/ИИ-персонажам, без спама, накруток и выдачи себя за другое лицо." });
+});
+
+app.MapPost("/api/artist/verify/confirm", async (HttpContext context, Db database) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    await using var connection = database.Open();
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = "UPDATE ArtistVerifications SET Status='approved', ReviewedAt=$now WHERE UserId=$user AND Status='pending'";
+    cmd.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+    cmd.Parameters.AddWithValue("$user", user.Id);
+    return await cmd.ExecuteNonQueryAsync() > 0
+        ? Results.Ok(new { status = "approved", badge = "Подтверждено Murzila ✓" })
+        : Results.BadRequest(new { error = "Заявка не найдена или уже обработана." });
 });
 
 // ---------- ICQ-клон: свой протокол поверх HTTPS, старый интерфейс ----------
@@ -2330,6 +2670,27 @@ app.MapDelete("/api/cloud/tracks/{id}", async (string id, HttpContext context, D
     try
     {
         return await cloud.DeleteAsync(user.Id, id) ? Results.Ok(new { deleted = true }) : Results.NotFound();
+    }
+    catch (InvalidDataException ex) { return Results.BadRequest(new { error = ex.Message }); }
+});
+
+app.MapPost("/api/cloud/tracks/{id}/flags", async (string id, HttpContext context, Db database, CloudStore cloud) =>
+{
+    var user = await FindUserAsync(database, context);
+    if (user is null) return Results.Unauthorized();
+    bool? explicitFlag = null, plus18 = null;
+    try
+    {
+        using var doc = await JsonDocument.ParseAsync(context.Request.Body);
+        if (doc.RootElement.TryGetProperty("isExplicit", out var e)) explicitFlag = e.GetBoolean();
+        if (doc.RootElement.TryGetProperty("is18Plus", out var p)) plus18 = p.GetBoolean();
+    }
+    catch { }
+    try
+    {
+        return await cloud.SetFlagsAsync(user.Id, id, explicitFlag, plus18)
+            ? Results.Ok(new { updated = true })
+            : Results.NotFound();
     }
     catch (InvalidDataException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });

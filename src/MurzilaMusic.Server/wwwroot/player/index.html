@@ -111,6 +111,7 @@
   .tcover{width:40px;height:40px;border-radius:7px;background:var(--card2);object-fit:cover;flex:0 0 auto;display:grid;place-items:center;color:var(--muted2);overflow:hidden}
   .tcover img{width:100%;height:100%;object-fit:cover}
   .tname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .explicit-badge{display:inline-block;border:1px solid var(--muted);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;color:var(--muted);vertical-align:middle;letter-spacing:.04em}
   .tartist{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .talbum{color:var(--muted);font-size:12px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tdur{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;width:56px}
@@ -234,6 +235,10 @@
   .srv .txt b{display:block;font-size:13px}
   .srv .txt code{font-size:11px;color:var(--muted);word-break:break-all}
   .note{background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.25);border-radius:12px;padding:12px 14px;font-size:12px;color:#ffd39b;line-height:1.55;margin-top:12px}
+  .lead{font-size:13px;color:var(--text);line-height:1.6;margin:0 0 10px}
+  .input{height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--line);background:#090c13;color:var(--text);font-size:13px;outline:none}
+  .input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,110,.13)}
+  .badge{display:inline-block;padding:5px 11px;border-radius:999px;background:rgba(34,211,110,.13);border:1px solid rgba(34,211,110,.35);color:var(--accent);font-size:11px;font-weight:700}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 
   .toast{position:fixed;left:50%;bottom:116px;transform:translateX(-50%) translateY(12px);background:#151b25;border:1px solid #2d3646;color:var(--text);padding:10px 16px;border-radius:999px;font-size:12.5px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:60;max-width:min(520px,92vw);text-align:center}
@@ -291,6 +296,12 @@
       </button>
       <button class="navitem" data-view="scanner">
         <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4zm7 9a1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V23h-2v-2.06A9 9 0 0 1 3 12a1 1 0 1 1 2 0 7 7 0 0 0 14 0z"/></svg>Сканер песен
+      </button>
+      <button class="navitem" data-view="kassa">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM6 9h12M6 13h8"/></svg>Murzila Kassa
+      </button>
+      <button class="navitem" data-view="verify">
+        <svg viewBox="0 0 24 24"><path d="M12 2l2.4 5 5.6.8-4 4 .9 5.7L12 15l-5 2.5.9-5.7-4-4L9.6 7z"/></svg>Статус артиста
       </button>
       <button class="navitem" data-view="equalizer">
         <svg viewBox="0 0 24 24"><path d="M4 4h2v10H4zm0 12h2v4H4zM11 4h2v4h-2zm0 6h2v10h-2zM18 4h2v13h-2zm0 15h2v1h-2zM2 14h6v2H2zm7-8h6v2H9zm7 9h6v2h-6z"/></svg>Эквалайзер
@@ -379,6 +390,14 @@
     <!-- karaoke -->
     <section class="view" id="view-karaoke" hidden>
       <div class="sectionhead"><h2>Караоке</h2><span id="karaokeStatus">выбери трек</span></div>
+      <div class="card" style="padding:16px;border-radius:14px;margin-bottom:14px">
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="fastArtist" class="input" placeholder="Артист" style="flex:1;min-width:120px">
+          <input id="fastTitle" class="input" placeholder="Название песни" style="flex:1;min-width:140px">
+          <button class="btn primary" id="fastSearch">Найти текст</button>
+        </div>
+        <div id="fastStatus" class="note" style="margin-top:10px">Быстрый поиск: LrcLib · Genius · Musixmatch · lyrics.ovh — все одновременно.</div>
+      </div>
       <div id="karaokeBody">
         <div class="karaokeEmpty">
           <h3>Караоке по твоим трекам</h3>
@@ -398,6 +417,61 @@
           <label class="chip" style="gap:6px"><input type="checkbox" id="scanSpeak" checked> Озвучить результат</label>
         </div>
         <div id="scanStatus" class="note" style="margin-top:14px">Готов.</div>
+      </div>
+    </section>
+
+    <!-- murzila kassa -->
+    <section class="view" id="view-kassa" hidden>
+      <div class="sectionhead"><h2>Murzila Kassa</h2><span>внутренний баланс и подписки</span></div>
+      <div class="card" style="padding:22px;border-radius:16px">
+        <div class="sectionhead" style="margin-top:0"><h3 style="font-size:15px">Баланс</h3></div>
+        <div id="kassaBalance" class="lead">—</div>
+        <div id="kassaSubs" class="note" style="margin-top:8px"></div>
+        <div class="sectionhead" style="margin-top:18px"><h3 style="font-size:15px">Пополнить</h3></div>
+        <div class="row" style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+          <input id="kassaAmount" class="input" type="number" min="1" max="10000" value="100" style="width:110px">
+          <span style="color:var(--muted);font-size:12px">₽ (1 ₽ = 100 копеек)</span>
+          <button class="btn primary" id="kassaTopup">Пополнить вручную</button>
+        </div>
+        <div class="sectionhead" style="margin-top:18px"><h3 style="font-size:15px">Подписки</h3></div>
+        <div class="row" style="display:flex;gap:9px;flex-wrap:wrap">
+          <button class="btn" data-plan="basic">Базов · 10 ₽/мес</button>
+          <button class="btn" data-plan="pro">Pro · 50 ₽/мес</button>
+          <button class="btn" data-plan="ultra">Ultra · 100 ₽/мес</button>
+        </div>
+        <div id="kassaStatus" class="note" style="margin-top:14px"></div>
+      </div>
+    </section>
+
+    <!-- artist verification -->
+    <section class="view" id="view-verify" hidden>
+      <div class="sectionhead"><h2>Статус артиста</h2><span>подтверждение Murzila</span></div>
+      <div class="card" style="padding:22px;border-radius:16px">
+        <div id="verifyBadge" class="badge" style="display:none">Подтверждено Murzila ✓</div>
+        <p class="lead">Подтверди профиль, чтобы получить значок <b>Подтверждено Murzila ✓</b>.</p>
+        <div class="switchline">
+          <span>Я крупный артист</span>
+          <button class="chipbtn" data-verify="large">Выбрать</button>
+        </div>
+        <div class="switchline">
+          <span>Я не крупный артист</span>
+          <button class="chipbtn" data-verify="small">Выбрать</button>
+        </div>
+        <div class="row" style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px;align-items:center">
+          <label style="font-size:12px;color:var(--muted)">Слушателей в месяц <input id="verifyListeners" class="input" type="number" min="0" value="1000" style="width:90px"></label>
+          <label style="font-size:12px;color:var(--muted)">Подписчиков <input id="verifyFollowers" class="input" type="number" min="0" value="500" style="width:90px"></label>
+        </div>
+        <div class="toolbar" style="margin-top:12px">
+          <button class="btn primary" id="verifyStart">Отправить заявку</button>
+          <button class="btn" id="verifyConfirm">Подтвердить код</button>
+        </div>
+        <div id="verifyCode" class="lead" style="margin-top:12px"></div>
+        <div id="verifyNote" class="note" style="margin-top:8px"></div>
+        <div class="note" style="margin-top:14px">
+          Без ИИ-музыки и ИИ-персон, без спама, накруток и выдачи себя за другое лицо.
+          Крупные артисты вставляют код дословно на Яндекс Музыке, Spotify, Apple Music,
+          YouTube Music, Amazon Music, SoundCloud, Bandcamp, Tidal, Qobuz, Deezer и QQ Music.
+        </div>
       </div>
     </section>
 
@@ -457,12 +531,6 @@
       <div class="cover" id="npCover"><div class="ph"><svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div></div>
       <h3 id="npTitle">Ничего не играет</h3>
       <p id="npArtist">Выбери трек</p>
-      <div class="vizwrap"><canvas id="viz"></canvas></div>
-      <div class="npactions">
-        <button class="btn" id="npKaraoke">Караоке</button>
-        <button class="btn" id="npEq">Эквалайзер</button>
-        <button class="btn" id="npDownload">Скачать</button>
-      </div>
     </div>
     <h4>Далее в очереди</h4>
     <div id="queueList"></div>
@@ -1045,6 +1113,8 @@
       hasCover: !!(t.hasCover ?? t.HasCover),
       hasLyrics: !!(t.hasLyrics ?? t.HasLyrics),
       allowExternal: !!(t.allowExternal ?? t.AllowExternal),
+      isExplicit: !!(t.isExplicit ?? t.IsExplicit),
+      is18Plus: !!(t.is18Plus ?? t.Is18Plus),
       shared: !!t.shared,
       addedAt: t.addedAt ?? t.AddedAt ?? ''
     };
@@ -1138,6 +1208,8 @@
     if (name === 'download') renderDownload();
     if (name === 'stats') loadStats();
     if (name === 'servers') loadServers();
+    if (name === 'kassa') loadKassa();
+    if (name === 'verify') loadVerify();
     $('main').scrollTop = 0;
   }
   navButtons.forEach(b => b.addEventListener('click', () => showView(b.dataset.view, b.dataset.filter)));
@@ -1206,6 +1278,12 @@
       } else cover.innerHTML = noteSvg(16);
       const meta = document.createElement('div'); meta.style.minWidth = '0';
       const nm = document.createElement('div'); nm.className = 'tname'; nm.textContent = t.title;
+      if (t.isExplicit || t.is18Plus) {
+        const badge = document.createElement('span');
+        badge.className = 'explicit-badge';
+        badge.textContent = t.isExplicit ? 'Explicit' : '18+';
+        nm.append(' ', badge);
+      }
       const ar = document.createElement('div'); ar.className = 'tartist'; ar.textContent = t.artist;
       meta.append(nm, ar); cell.append(cover, meta); main.append(cell);
 
@@ -1718,6 +1796,28 @@
     updateKaraokeHighlight();
   }
 
+  $('fastSearch').addEventListener('click', async () => {
+    const artist = $('fastArtist').value.trim();
+    const title = $('fastTitle').value.trim();
+    if (!title) { $('fastStatus').textContent = 'Введи название песни.'; return; }
+    $('fastStatus').textContent = 'Ищу по всем источникам…';
+    const r = await api('/api/lyrics/search?artist=' + encodeURIComponent(artist) +
+      '&title=' + encodeURIComponent(title));
+    if (!r.ok || !r.data || !r.data.text) {
+      $('fastStatus').textContent = (r.data && r.data.error) || 'Текст не найден ни в одном источнике.';
+      return;
+    }
+    const parsed = parseLrc(r.data.text);
+    state.lyrics = parsed.timed ? parsed.lines : [];
+    state.plainLyrics = parsed.timed ? '' : r.data.text;
+    state.lyricsError = null;
+    renderKaraoke();
+    const rows = (r.data.providers || []).map(p =>
+      '<br>' + esc(p.provider) + ': ' + p.ms + ' мс' + (p.ok ? ' ✓' : '')).join('');
+    $('fastStatus').innerHTML = 'Источник: <b>' + esc(r.data.source) + '</b> · ' +
+      r.data.elapsedMs + ' мс' + rows;
+  });
+
   function renderKaraoke() {
     const body = $('karaokeBody');
     const t = current();
@@ -1929,6 +2029,79 @@
     $('serversStatus').textContent = health.ok ? 'API работает' : 'API не отвечает';
   }
   $('serversRefresh').addEventListener('click', loadServers);
+
+  /* ---------- murzila kassa ---------- */
+  function money(minor) { return (Number(minor || 0) / 100).toFixed(2) + ' ₽'; }
+  async function loadKassa() {
+    const r = await api('/api/kassa/balance');
+    if (!r.ok || !r.data) { $('kassaBalance').textContent = 'Нужно войти в аккаунт.'; return; }
+    $('kassaBalance').textContent = 'Баланс: ' + money(r.data.amountMinor);
+    const subs = r.data.subscriptions || [];
+    $('kassaSubs').textContent = subs.length
+      ? 'Подписки: ' + subs.map(s => s.plan + ' до ' + String(s.expiresAt).slice(0, 10)).join(', ')
+      : 'Активных подписок нет.';
+  }
+  $('kassaTopup').addEventListener('click', async () => {
+    const rub = Math.max(1, Number($('kassaAmount').value) || 0);
+    const r = await api('/api/kassa/topup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountMinor: rub * 100 })
+    });
+    $('kassaStatus').textContent = r.ok ? 'Баланс пополнен на ' + money(r.data.amountMinor) + '.'
+      : (r.data && r.data.error) || 'Не удалось пополнить.';
+    loadKassa();
+  });
+  document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', async () => {
+    const r = await api('/api/kassa/subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: b.dataset.plan })
+    });
+    $('kassaStatus').textContent = r.ok ? 'Подписка ' + b.dataset.plan + ' активна до ' +
+      String(r.data.expiresAt).slice(0, 10) + '.'
+      : (r.data && r.data.error) || 'Не удалось оформить подписку.';
+    loadKassa();
+  }));
+
+  /* ---------- artist verification ---------- */
+  let verifyType = null;
+  async function loadVerify() {
+    const r = await api('/api/artist/verify/status');
+    if (!r.ok || !r.data || r.data.status === 'none') {
+      $('verifyBadge').style.display = 'none';
+      $('verifyNote').textContent = 'Заявки нет.';
+      return;
+    }
+    $('verifyBadge').style.display = r.data.badge ? 'inline-block' : 'none';
+    document.querySelectorAll('[data-verify]').forEach(b => b.classList.toggle('primary', b.dataset.verify === r.data.type));
+    $('verifyCode').textContent = r.data.code ? 'Код: ' + r.data.code : '';
+    $('verifyNote').textContent = 'Статус: ' + r.data.status + '. Слушателей: ' +
+      r.data.monthlyListeners + ', подписчиков: ' + r.data.followers + '.';
+  }
+  document.querySelectorAll('[data-verify]').forEach(b => b.addEventListener('click', () => {
+    verifyType = b.dataset.verify;
+    document.querySelectorAll('[data-verify]').forEach(x => x.classList.toggle('primary', x === b));
+  }));
+  $('verifyStart').addEventListener('click', async () => {
+    const r = await api('/api/artist/verify/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: verifyType || 'small',
+        monthlyListeners: Number($('verifyListeners').value) || 0,
+        followers: Number($('verifyFollowers').value) || 0
+      })
+    });
+    if (r.ok) {
+      $('verifyCode').textContent = 'Код: ' + r.data.code;
+      $('verifyNote').textContent = r.data.instruction;
+    } else {
+      $('verifyNote').textContent = (r.data && r.data.error) || 'Не удалось отправить заявку.';
+    }
+  });
+  $('verifyConfirm').addEventListener('click', async () => {
+    const r = await api('/api/artist/verify/confirm', { method: 'POST' });
+    $('verifyNote').textContent = r.ok ? r.data.badge : ((r.data && r.data.error) || 'Ошибка.');
+    loadVerify();
+  });
 
   /* ---------- auth ---------- */
   function openAuth() { setAuthMode('login'); $('authModal').classList.remove('hidden'); setTimeout(() => $('authEmail').focus(), 40); }
@@ -2402,12 +2575,6 @@
     showView('karaoke');
     if (current()) loadLyrics(current());
   });
-  $('npKaraoke').addEventListener('click', () => {
-    showView('karaoke');
-    if (current()) loadLyrics(current());
-  });
-  $('npEq').addEventListener('click', () => showView('equalizer'));
-  $('npDownload').addEventListener('click', () => downloadTrack(current()));
   $('karaokePick').addEventListener('click', () => showView('tracks', 'all'));
   $('backBtn').addEventListener('click', () => history.back());
   $('fwdBtn').addEventListener('click', () => history.forward());

@@ -129,7 +129,7 @@
   <h1>Свои файлы.<br><span class="grad">Прямые ссылки на твоём домене.</span></h1>
   <p class="lead">
     Murzila Filesharing — это хранилище твоих аудио, обложек и текстов с доступом по токену.
-    Ссылки ведут на <b>mursik-filesharing.cc.cd</b> и работают в браузере, плеере и через API.
+    Ссылки ведут на <b>murzila-filesharing.cc.cd</b> и работают в браузере, плеере и через API.
   </p>
   <div class="actions">
     <a class="cta" href="https://murzila-music.cc.cd/player">Послушать библиотеку</a>
@@ -193,7 +193,7 @@
   <div class="split" style="margin-top:20px">
     <div>
       <h3 style="margin:0 0 10px;font-size:16px">Скачать файл</h3>
-<pre>curl -L "https://mursik-filesharing.cc.cd/api/music/files/ID" \
+<pre>curl -L "https://murzila-filesharing.cc.cd/api/music/files/ID" \
   -H "Authorization: Bearer ТОКЕН" \
   -o track.mp3</pre>
     </div>
@@ -204,6 +204,24 @@
 &lt;/audio&gt;</pre>
     </div>
   </div>
+</section>
+
+<section id="share">
+  <div class="sect-head">
+    <div class="eyebrow">Рабочий обмен</div>
+    <h2>Загрузи файл и получи ссылку</h2>
+    <p>Ссылка ведёт на <code>/s/ID</code> и открывается без токена — именно это и есть обмен по URL. Файл живёт 30 дней, удалить его можно в любой момент. Только твои файлы, до 200 МБ.</p>
+  </div>
+  <label style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:8px">API-токен (с <a href="https://murzila-music.cc.cd/api/token" style="color:var(--accent2)">/api/token</a>)
+    <input id="fsToken" type="password" placeholder="Bearer-токен" style="display:block;width:100%;margin-top:6px;height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:#090c13;color:var(--text);font-size:13px">
+  </label>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0 18px">
+    <input id="fsFile" type="file" style="font-size:13px;color:var(--muted)">
+    <button class="cta" id="fsUpload">Загрузить и получить ссылку</button>
+  </div>
+  <div id="fsStatus" class="card" style="padding:14px;font-size:13px;color:var(--muted)">Готов к загрузке.</div>
+  <h3 style="margin:24px 0 10px;font-size:16px">Мои ссылки</h3>
+  <div id="fsList"></div>
 </section>
 
 <section id="faq">
@@ -241,5 +259,77 @@
 </footer>
 
 </div>
+<script>
+(function () {
+  var tokenInput = document.getElementById('fsToken');
+  var saved = null;
+  try { saved = localStorage.getItem('murzila_filesharing_token'); } catch (e) { }
+  if (saved) tokenInput.value = saved;
+  function token() {
+    var t = (tokenInput.value || '').trim().replace(/^Bearer\s+/i, '');
+    try { localStorage.setItem('murzila_filesharing_token', t); } catch (e) { }
+    return t;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+  function status(text) { document.getElementById('fsStatus').textContent = text; }
+  function size(n) { n = Number(n || 0); return n > 1048576 ? (n / 1048576).toFixed(1) + ' МБ' : Math.ceil(n / 1024) + ' КБ'; }
+
+  async function api(path, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + token();
+    var res = await fetch(path, options);
+    var data = null;
+    try { data = await res.json(); } catch (e) { }
+    return { ok: res.ok, data: data };
+  }
+
+  document.getElementById('fsUpload').addEventListener('click', async function () {
+    var file = document.getElementById('fsFile').files[0];
+    if (!file) { status('Выбери файл.'); return; }
+    if (!token()) { status('Сначала вставь API-токен.'); return; }
+    status('Загружаю…');
+    var body = new FormData();
+    body.append('file', file);
+    var r = await api('/api/filesharing/upload', { method: 'POST', body: body });
+    if (!r.ok || !r.data || !r.data.url) {
+      status((r.data && r.data.error) || 'Не удалось загрузить файл. Проверь токен.');
+      return;
+    }
+    var abs = location.origin + r.data.url;
+    status('Готово: ' + abs);
+    try { await navigator.clipboard.writeText(abs); } catch (e) { }
+    loadList();
+  });
+
+  async function loadList() {
+    var box = document.getElementById('fsList');
+    if (!token()) { box.innerHTML = '<p style="color:var(--muted);font-size:13px">Вставь токен, чтобы увидеть ссылки.</p>'; return; }
+    var r = await api('/api/filesharing/list');
+    var files = (r.data && r.data.files) || [];
+    if (!files.length) { box.innerHTML = '<p style="color:var(--muted);font-size:13px">Пока нет загруженных файлов.</p>'; return; }
+    box.innerHTML = files.map(function (f) {
+      var abs = location.origin + f.url;
+      return '<div class="card" style="padding:14px;margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between">' +
+        '<div style="min-width:0"><b>' + esc(f.fileName) + '</b><br><span style="font-size:12px;color:var(--muted)">' +
+        size(f.size) + ' · ' + f.downloads + ' скачиваний · до ' + String(f.expiresAt).slice(0, 10) + '</span><br>' +
+        '<a href="' + esc(abs) + '" target="_blank" rel="noreferrer" style="color:var(--accent2);font-size:12.5px">' + esc(abs) + '</a></div>' +
+        '<div style="display:flex;gap:8px"><button class="cta ghost" data-copy="' + esc(abs) + '">Копировать</button>' +
+        '<button class="cta ghost" data-del="' + esc(f.id) + '">Удалить</button></div></div>';
+    }).join('');
+    box.querySelectorAll('[data-copy]').forEach(function (b) {
+      b.addEventListener('click', function () { navigator.clipboard.writeText(b.dataset.copy).then(function () { status('Ссылка скопирована.'); }); });
+    });
+    box.querySelectorAll('[data-del]').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        var r = await api('/api/filesharing/files/' + b.dataset.del, { method: 'DELETE' });
+        if (r.ok) { status('Файл удалён.'); loadList(); }
+      });
+    });
+  }
+  loadList();
+})();
+</script>
 </body>
 </html>
